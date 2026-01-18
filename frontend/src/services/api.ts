@@ -1,0 +1,27 @@
+import type { CreateGameRequest, CreateGameResponse, GameListItem, GameSettings } from '../../../shared/types';
+
+const API_URL = 'http://localhost:3001/api';
+
+export const api = {
+  async createGame(data: CreateGameRequest): Promise<CreateGameResponse> {
+    const response = await fetch(`${API_URL}/games`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Failed to create game');
+    return response.json();
+  },
+
+  async getActiveGames(): Promise<GameListItem[]> {
+    const response = await fetch(`${API_URL}/games`);
+    if (!response.ok) throw new Error('Failed to fetch games');
+    return response.json();
+  },
+
+  async getGame(gameId: string): Promise<{ id: string; name: string; status: string; playerCount: number; maxPlayers: number; settings: GameSettings }> {
+    const response = await fetch(`${API_URL}/games/${gameId}`);
+    if (!response.ok) throw new Error('Failed to fetch game');
+    return response.json();
+  },
+};
