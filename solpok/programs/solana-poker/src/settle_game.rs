@@ -29,8 +29,18 @@ pub fn handler(ctx: Context<SettleGame>, winner_seat_index: u8) -> Result<()> {
         &[ctx.bumps.vault],
     ];
     
-    **ctx.accounts.vault.try_borrow_mut_lamports()? -= pot;
-    **ctx.accounts.winner_wallet.try_borrow_mut_lamports()? += pot;
+    let signer = &[&seeds[..]];
+
+    let cpi_accounts = anchor_lang::system_program::Transfer {
+        from: ctx.accounts.vault.to_account_info(),
+        to: ctx.accounts.winner_wallet.to_account_info(),
+    };
+    let cpi_program = ctx.accounts.system_program.to_account_info();
+    
+    anchor_lang::system_program::transfer(
+        CpiContext::new_with_signer(cpi_program, cpi_accounts, signer),
+        pot,
+    )?;
 
     // Update game state
     game.winner_seat = Some(winner_seat_index);
