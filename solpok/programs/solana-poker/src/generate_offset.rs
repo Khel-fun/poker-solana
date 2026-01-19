@@ -5,19 +5,20 @@ use crate::error::PokerError;
 
 /// Generate random position offset using Solana slot hash
 /// 
-/// COMMIT-REVEAL PATTERN:
-/// 1. Backend first submits encrypted cards (COMMIT phase)
-/// 2. This instruction generates offset from slot hash (REVEAL phase)
-/// 3. Backend can't predict slot hash when committing cards
-/// 4. deal_cards uses: position = (seat*2 + offset) % 10
+/// FULL FLOW:
+/// 1. submit_cards - Backend commits encrypted cards
+/// 2. apply_offset_batch (x3) - Apply encrypted value offset (backend can't see final values)
+/// 3. generate_offset (this) - Generate position rotation from slot hash
+/// 4. deal_cards - Deal using rotated positions
 /// 
-/// Result: Backend can't control which player gets which position!
+/// Result: Backend can't control which player gets which cards OR what values they are!
 pub fn handler(ctx: Context<GenerateOffset>) -> Result<()> {
     let game = &mut ctx.accounts.game;
 
-    // Validate - must be after cards committed, before dealing
+    // Validate - must be after BOTH cards submitted AND value offset applied
     require!(game.cards_submitted, PokerError::CardsNotSubmitted);
-    require!(!game.offset_applied, PokerError::OffsetAlreadyApplied);
+    require!(game.offset_applied, PokerError::OffsetNotApplied); // Value offset must be done
+    require!(game.position_offset == 0, PokerError::PositionOffsetAlreadySet);
     require!(game.stage == GameStage::Waiting, PokerError::InvalidGameStage);
 
     // Generate offset from current slot (unpredictable to backend at commit time)
@@ -26,14 +27,13 @@ pub fn handler(ctx: Context<GenerateOffset>) -> Result<()> {
     
     // Use first byte of slot, mod 10 for hole card positions (0-9)
     // This rotates which position goes to which seat
-    let offset = slot_bytes[0] % 10;
+    let offset = (slot_bytes[0] % 10) + 1; // +1 to ensure it's never 0 (0 means not set)
     
     game.position_offset = offset;
-    game.offset_applied = true;
 
     msg!(
         "Position offset generated: {} (slot: {}). Cards will be rotated.",
-        offset,
+        offset - 1, // Log actual rotation value
         clock.slot
     );
     

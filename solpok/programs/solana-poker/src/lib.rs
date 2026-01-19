@@ -17,6 +17,7 @@ pub mod player_action;
 pub mod advance_stage;
 pub mod settle_game;
 pub mod post_blinds;
+pub mod apply_offset_batch;
 
 use create_table::*;
 use join_table::*;
@@ -29,6 +30,7 @@ use player_action::*;
 use advance_stage::*;
 use settle_game::*;
 use post_blinds::*;
+use apply_offset_batch::*;
 
 declare_id!("2fS8A3rSY5zSJyc5kaCKhAhwjpLiRPhth1bTwNWmGNcm");
 
@@ -63,19 +65,34 @@ pub mod solana_poker {
         start_game::handler(ctx, game_id)
     }
 
-    /// Backend submits encrypted cards for the game
+    /// Backend submits encrypted cards in batches of 5
+    /// batch_index: 0=cards 0-4, 1=cards 5-9, 2=cards 10-14
     pub fn submit_cards<'info>(
         ctx: Context<'_, '_, '_, 'info, SubmitCards<'info>>,
-        encrypted_cards: Vec<Vec<u8>>,
+        batch_index: u8,
+        encrypted_card_0: Vec<u8>,
+        encrypted_card_1: Vec<u8>,
+        encrypted_card_2: Vec<u8>,
+        encrypted_card_3: Vec<u8>,
+        encrypted_card_4: Vec<u8>,
         input_type: u8,
     ) -> Result<()> {
-        submit_cards::handler(ctx, encrypted_cards, input_type)
+        submit_cards::handler(ctx, batch_index, encrypted_card_0, encrypted_card_1, encrypted_card_2, encrypted_card_3, encrypted_card_4, input_type)
     }
 
     /// Generate position offset using slot hash (COMMIT-REVEAL pattern)
-    /// MUST call AFTER submit_cards, BEFORE deal_cards
+    /// MUST call AFTER apply_offset_batch completes, BEFORE deal_cards
     pub fn generate_offset(ctx: Context<GenerateOffset>) -> Result<()> {
         generate_offset::handler(ctx)
+    }
+
+    /// Apply encrypted value offset to cards in batches (idempotent, resumable)
+    /// batch_index: 0 = cards 0-4 + generate offset, 1 = cards 5-9, 2 = cards 10-14
+    pub fn apply_offset_batch<'info>(
+        ctx: Context<'_, '_, '_, 'info, ApplyOffsetBatch<'info>>,
+        batch_index: u8,
+    ) -> Result<()> {
+        apply_offset_batch::handler(ctx, batch_index)
     }
 
     /// Deal hole cards to player from shuffled card pool

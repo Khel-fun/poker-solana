@@ -88,4 +88,13 @@ pub enum PokerError {
 
     #[msg("Blinds already posted for this hand")]
     BlindsAlreadyPosted,
+
+    #[msg("Invalid batch index (must be 0, 1, or 2)")]
+    InvalidBatchIndex,
+
+    #[msg("Batch out of order - previous batch not complete")]
+    BatchOutOfOrder,
+
+    #[msg("Position offset already generated")]
+    PositionOffsetAlreadySet,
 }

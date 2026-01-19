@@ -43,11 +43,21 @@ pub struct PokerGame {
     /// Cards 0-9: Hole cards (2 per player, up to 5 players)
     /// Cards 10-14: Community cards (flop, turn, river)
     pub card_pool: [Euint128; 15],
+    
+    // ===== VALUE OFFSET STATE (Batched, Idempotent) =====
+    /// Encrypted offset value (generated once, reused across batches)
+    pub encrypted_offset: Euint128,
+    /// Current batch: 0=not started, 1-3=in progress, 255=complete
+    pub offset_batch: u8,
+    /// Bitmask tracking which cards have been offset (bits 0-14)
+    pub cards_offset_mask: u16,
+    
+    // ===== POSITION & DEALING STATE =====
     /// Position offset for card rotation (0-9)
     pub position_offset: u8,
     /// Whether cards have been submitted to pool
     pub cards_submitted: bool,
-    /// Whether offset has been generated
+    /// Whether value offset has been fully applied
     pub offset_applied: bool,
     /// How many cards have been dealt
     pub cards_dealt_count: u8,
@@ -66,10 +76,11 @@ impl PokerGame {
     /// 8 (discriminator) + 32 (table) + 8 (game_id) + 1 (stage) + 8 (pot) 
     /// + 8 (current_bet) + 1 (dealer) + 1 (action) + 1 (remaining) + 1 (acted) 
     /// + 1 (player_count) + 1 (folded_mask) + 1 (all_in_mask) + 1 (blinds_posted)
-    /// + 1 (last_raiser) + 8 (last_raise_amount) + 240 (card_pool) + 1 (position_offset) 
-    /// + 1 (cards_submitted) + 1 (offset_applied) + 1 (cards_dealt_count)
-    /// + 1 (community_revealed) + 2 (winner_seat Option) + 1 (bump)
-    pub const LEN: usize = 8 + 32 + 8 + 1 + 8 + 8 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 8 + 240 + 1 + 1 + 1 + 1 + 1 + 2 + 1;
+    /// + 1 (last_raiser) + 8 (last_raise_amount) + 240 (card_pool)
+    /// + 16 (encrypted_offset) + 1 (offset_batch) + 2 (cards_offset_mask)
+    /// + 1 (position_offset) + 1 (cards_submitted) + 1 (offset_applied)
+    /// + 1 (cards_dealt_count) + 1 (community_revealed) + 2 (winner_seat) + 1 (bump)
+    pub const LEN: usize = 8 + 32 + 8 + 1 + 8 + 8 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 8 + 240 + 16 + 1 + 2 + 1 + 1 + 1 + 1 + 1 + 2 + 1;
     
     /// Check if a player has folded
     pub fn is_folded(&self, seat: u8) -> bool {
@@ -95,6 +106,21 @@ impl PokerGame {
             }
         }
         count
+    }
+    
+    /// Check if a specific card has been offset
+    pub fn is_card_offset(&self, card_index: u8) -> bool {
+        (self.cards_offset_mask >> card_index) & 1 == 1
+    }
+    
+    /// Mark a card as offset
+    pub fn mark_card_offset(&mut self, card_index: u8) {
+        self.cards_offset_mask |= 1 << card_index;
+    }
+    
+    /// Check if all 15 cards have been offset
+    pub fn all_cards_offset(&self) -> bool {
+        self.cards_offset_mask == 0x7FFF  // Bits 0-14 all set
     }
 }
 
