@@ -38,6 +38,13 @@ pub fn handler(ctx: Context<StartGame>, game_id: u64) -> Result<()> {
     
     // Card pool
     game.card_pool = [Euint128::default(); 15];
+    
+    // Value offset state (for batched offset application)
+    game.encrypted_offset = Euint128::default();
+    game.offset_batch = 0;          // 0=not started
+    game.cards_offset_mask = 0;     // No cards offset yet
+    
+    // Position and dealing state
     game.position_offset = 0;
     game.community_revealed = 0;
     game.cards_submitted = false;
