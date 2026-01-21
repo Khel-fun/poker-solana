@@ -1,33 +1,41 @@
-import { Router, Request, Response } from 'express';
-import { GameService } from '../services/GameService';
-import type { CreateGameRequest, GameSettings } from '../../../shared/types';
+import { Router, Request, Response } from "express";
+import { GameService } from "../services/GameService";
+import type { CreateGameRequest, GameSettings } from "../../../shared/types";
 
 const router = Router();
 
 // Create a new game
-router.post('/games', (req: Request, res: Response) => {
-  const { hostId, hostName, name, settings } = req.body as CreateGameRequest;
-  
+router.post("/games", (req: Request, res: Response) => {
+  const { hostId, hostName, name, settings, tablePDA, tableId } =
+    req.body as CreateGameRequest;
+
   if (!hostId || !hostName || !name || !settings) {
-    return res.status(400).json({ error: 'Missing required fields' });
+    return res.status(400).json({ error: "Missing required fields" });
   }
 
-  const result = GameService.createGame(hostId, hostName, name, settings);
+  const result = GameService.createGame(
+    hostId,
+    hostName,
+    name,
+    settings,
+    tablePDA,
+    tableId,
+  );
   res.status(201).json(result);
 });
 
 // Get all active games
-router.get('/games', (_req: Request, res: Response) => {
+router.get("/games", (_req: Request, res: Response) => {
   const games = GameService.getActiveGames();
   res.json(games);
 });
 
 // Get a specific game
-router.get('/games/:id', (req: Request, res: Response) => {
+router.get("/games/:id", (req: Request, res: Response) => {
   const game = GameService.getGame(req.params.id);
-  
+
   if (!game) {
-    return res.status(404).json({ error: 'Game not found' });
+    return res.status(404).json({ error: "Game not found" });
   }
 
   res.json({
