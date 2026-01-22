@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useGameStore } from '../stores/gameStore';
-import { api } from '../services/api';
-import { ArrowLeft, Users, RefreshCw, Loader2 } from 'lucide-react';
-import type { GameListItem } from '../../../shared/types';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useGameStore } from "../stores/gameStore";
+import { api } from "../services/api";
+import { ArrowLeft, Users, RefreshCw, Loader2 } from "lucide-react";
+import type { GameListItem } from "../../../shared/types";
+import { WalletButton } from "../components/WalletButton";
 
 export function ActiveGames() {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ export function ActiveGames() {
       const activeGames = await api.getActiveGames();
       setGames(activeGames);
     } catch (err) {
-      console.error('Failed to fetch games:', err);
+      console.error("Failed to fetch games:", err);
     } finally {
       setLoading(false);
     }
@@ -32,29 +33,41 @@ export function ActiveGames() {
 
   const handleJoin = async (gameId: string) => {
     if (!playerId || !playerName) {
-      navigate('/');
+      navigate("/");
       return;
     }
 
     setJoining(gameId);
-    connect();
-    
-    setTimeout(() => {
-      joinGame(gameId);
-      navigate(`/lobby/${gameId}`);
-    }, 100);
+
+    try {
+      // Connect wallet and websocket
+      connect();
+
+      // Join the game room (websocket)
+      // The blockchain transaction will happen in the Lobby component
+      setTimeout(() => {
+        joinGame(gameId);
+        navigate(`/lobby/${gameId}`);
+      }, 100);
+    } catch (err: any) {
+      console.error("Failed to join game:", err);
+      setJoining(null);
+    }
   };
 
   return (
     <div className="min-h-screen p-4">
       <div className="max-w-2xl mx-auto">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back
-        </button>
+        <div className="flex justify-between items-center mb-8">
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back
+          </button>
+          <WalletButton />
+        </div>
 
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-white">Active Games</h1>
@@ -63,7 +76,7 @@ export function ActiveGames() {
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>
         </div>
@@ -76,7 +89,7 @@ export function ActiveGames() {
           <div className="bg-gray-800 rounded-xl p-8 text-center">
             <p className="text-gray-400 mb-4">No active games found</p>
             <button
-              onClick={() => navigate('/create')}
+              onClick={() => navigate("/create")}
               className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
             >
               Create a Game
@@ -90,21 +103,30 @@ export function ActiveGames() {
                 className="bg-gray-800 rounded-xl p-6 flex items-center justify-between"
               >
                 <div>
-                  <h3 className="text-xl font-semibold text-white mb-1">{game.name}</h3>
-                  <p className="text-gray-400 text-sm">Hosted by {game.hostName}</p>
+                  <h3 className="text-xl font-semibold text-white mb-1">
+                    {game.name}
+                  </h3>
+                  <p className="text-gray-400 text-sm">
+                    Hosted by {game.hostName}
+                  </p>
                   <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                     <span className="flex items-center gap-1">
                       <Users className="w-4 h-4" />
                       {game.playerCount}/{game.maxPlayers}
                     </span>
-                    <span>Blinds: {game.settings.smallBlind}/{game.settings.bigBlind}</span>
+                    <span>
+                      Blinds: {game.settings.smallBlind}/
+                      {game.settings.bigBlind}
+                    </span>
                     <span>Chips: {game.settings.startingChips}</span>
                   </div>
                 </div>
-                
+
                 <button
                   onClick={() => handleJoin(game.id)}
-                  disabled={joining === game.id || game.playerCount >= game.maxPlayers}
+                  disabled={
+                    joining === game.id || game.playerCount >= game.maxPlayers
+                  }
                   className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
                 >
                   {joining === game.id ? (
@@ -113,9 +135,9 @@ export function ActiveGames() {
                       Joining...
                     </>
                   ) : game.playerCount >= game.maxPlayers ? (
-                    'Full'
+                    "Full"
                   ) : (
-                    'Join'
+                    "Join"
                   )}
                 </button>
               </div>

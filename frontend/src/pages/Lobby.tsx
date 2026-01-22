@@ -1,45 +1,110 @@
-import { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useGameStore } from '../stores/gameStore';
-import { ArrowLeft, Users, Play, Loader2, Crown } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useGameStore } from "../stores/gameStore";
+import { ArrowLeft, Users, Play, Loader2, Crown } from "lucide-react";
+import { useSolanaPoker } from "../hooks/useSolanaPoker";
+import { WalletButton } from "../components/WalletButton";
 
 export function Lobby() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
-  const { 
-    playerId, 
-    gameState, 
-    isConnected, 
-    connect, 
-    joinGame, 
-    leaveGame, 
+  const {
+    playerId,
+    gameState,
+    isConnected,
+    connect,
+    joinGame,
+    leaveGame,
     startGame,
-    error 
+    error,
   } = useGameStore();
+
+  const {
+    joinTable,
+    startGame: startGameOnChain,
+    isConnected: isWalletConnected,
+  } = useSolanaPoker();
+  const [blockchainLoading, setBlockchainLoading] = useState(false);
+  const [blockchainError, setBlockchainError] = useState("");
+  const [hasJoinedTable, setHasJoinedTable] = useState(false);
 
   useEffect(() => {
     if (!playerId) {
-      console.log('[Lobby] No playerId, redirecting to home');
-      navigate('/');
+      console.log("[Lobby] No playerId, redirecting to home");
+      navigate("/");
       return;
     }
 
     if (!isConnected) {
-      console.log('[Lobby] Not connected, connecting...');
+      console.log("[Lobby] Not connected, connecting...");
       connect();
     }
   }, [playerId, isConnected, connect, navigate]);
 
   useEffect(() => {
-    console.log('[Lobby] Connection check:', { isConnected, gameId, hasGameState: !!gameState });
+    console.log("[Lobby] Connection check:", {
+      isConnected,
+      gameId,
+      hasGameState: !!gameState,
+    });
     if (isConnected && gameId && !gameState) {
-      console.log('[Lobby] Joining game:', gameId);
+      console.log("[Lobby] Joining game:", gameId);
       joinGame(gameId);
     }
   }, [isConnected, gameId, gameState, joinGame]);
 
+  // Join the blockchain table when joining a game (non-hosts only)
   useEffect(() => {
-    if (gameState?.status === 'playing') {
+    const shouldJoinTable =
+      gameState &&
+      isWalletConnected &&
+      !hasJoinedTable &&
+      !blockchainLoading &&
+      gameState.hostId !== playerId &&
+      gameState.tablePDA &&
+      gameState.settings;
+
+    if (shouldJoinTable) {
+      const joinBlockchainTable = async () => {
+        try {
+          setBlockchainLoading(true);
+          setBlockchainError("");
+
+          const lamportsPerChip = BigInt(1000000);
+          const buyIn =
+            BigInt(gameState!.settings.startingChips) * lamportsPerChip;
+
+          console.log("Joining blockchain table:", {
+            tablePDA: gameState!.tablePDA,
+            buyIn: buyIn.toString(),
+          });
+
+          const signature = await joinTable(gameState!.tablePDA!, buyIn);
+          console.log("Joined blockchain table:", signature);
+          setHasJoinedTable(true);
+        } catch (err: any) {
+          console.error("Failed to join blockchain table:", err);
+          setBlockchainError(err?.message || "Failed to join blockchain table");
+          // Don't retry automatically on error
+          setHasJoinedTable(true);
+        } finally {
+          setBlockchainLoading(false);
+        }
+      };
+
+      joinBlockchainTable();
+    }
+  }, [
+    gameState?.id,
+    gameState?.tablePDA,
+    isWalletConnected,
+    hasJoinedTable,
+    blockchainLoading,
+    playerId,
+  ]);
+
+  useEffect(() => {
+    if (gameState?.status === "playing") {
       navigate(`/game/${gameId}`);
     }
   }, [gameState?.status, gameId, navigate]);
@@ -48,12 +113,45 @@ export function Lobby() {
     if (gameId) {
       leaveGame(gameId);
     }
-    navigate('/');
+    navigate("/");
   };
 
-  const handleStart = () => {
-    if (gameId) {
+  const handleStart = async () => {
+    if (!gameId) return;
+
+    if (!isWalletConnected) {
+      setBlockchainError("Please connect your wallet first");
+      return;
+    }
+
+    setBlockchainLoading(true);
+    setBlockchainError("");
+
+    try {
+      if (!gameState?.tablePDA) {
+        throw new Error("Table address not found. Please create a new game.");
+      }
+
+      if (!gameState?.tableId) {
+        throw new Error("Table ID not found. Please create a new game.");
+      }
+
+      // Use the stored tableId from game state
+      const blockchainGameId = BigInt(gameState.tableId);
+
+      const signature = await startGameOnChain(
+        gameState.tablePDA,
+        blockchainGameId,
+      );
+      console.log("Game started on blockchain:", signature);
+
+      // Then trigger the backend/socket start
       startGame(gameId);
+    } catch (err: any) {
+      console.error("Failed to start game on blockchain:", err);
+      setBlockchainError(err?.message || "Failed to start game on blockchain");
+    } finally {
+      setBlockchainLoading(false);
     }
   };
 
@@ -71,22 +169,30 @@ export function Lobby() {
   return (
     <div className="min-h-screen p-4">
       <div className="max-w-2xl mx-auto">
-        <button
-          onClick={handleLeave}
-          className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Leave Lobby
-        </button>
+        <div className="flex justify-between items-center mb-8">
+          <button
+            onClick={handleLeave}
+            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Leave Lobby
+          </button>
+          <WalletButton />
+        </div>
 
         <div className="bg-gray-800 rounded-xl p-6 mb-6">
-          <h1 className="text-3xl font-bold text-white mb-2">{gameState.name}</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">
+            {gameState.name}
+          </h1>
           <div className="flex items-center gap-4 text-gray-400 text-sm">
             <span className="flex items-center gap-1">
               <Users className="w-4 h-4" />
               {gameState.players.length}/{gameState.settings.maxPlayers} players
             </span>
-            <span>Blinds: {gameState.settings.smallBlind}/{gameState.settings.bigBlind}</span>
+            <span>
+              Blinds: {gameState.settings.smallBlind}/
+              {gameState.settings.bigBlind}
+            </span>
             <span>Starting Chips: {gameState.settings.startingChips}</span>
           </div>
         </div>
@@ -97,6 +203,18 @@ export function Lobby() {
           </div>
         )}
 
+        {blockchainError && (
+          <div className="bg-red-900/50 border border-red-500 rounded-lg p-4 mb-6">
+            <p className="text-red-300">{blockchainError}</p>
+          </div>
+        )}
+
+        {!isWalletConnected && (
+          <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4 mb-6 text-yellow-200 text-sm">
+            Please connect your wallet to interact with the blockchain
+          </div>
+        )}
+
         <div className="bg-gray-800 rounded-xl p-6 mb-6">
           <h2 className="text-xl font-semibold text-white mb-4">Players</h2>
           <div className="space-y-3">
@@ -104,7 +222,9 @@ export function Lobby() {
               <div
                 key={player.id}
                 className={`flex items-center justify-between p-4 rounded-lg ${
-                  player.id === playerId ? 'bg-blue-900/30 border border-blue-500' : 'bg-gray-700'
+                  player.id === playerId
+                    ? "bg-blue-900/30 border border-blue-500"
+                    : "bg-gray-700"
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -137,11 +257,20 @@ export function Lobby() {
         {isHost ? (
           <button
             onClick={handleStart}
-            disabled={!canStart}
+            disabled={!canStart || blockchainLoading || !isWalletConnected}
             className="w-full py-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
           >
-            <Play className="w-5 h-5" />
-            {canStart ? 'Start Game' : 'Waiting for more players...'}
+            {blockchainLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Starting on blockchain...
+              </>
+            ) : (
+              <>
+                <Play className="w-5 h-5" />
+                {canStart ? "Start Game" : "Waiting for more players..."}
+              </>
+            )}
           </button>
         ) : (
           <div className="text-center py-4 text-gray-400">
