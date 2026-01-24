@@ -10,7 +10,8 @@ import { WalletButton } from "../components/WalletButton";
 export function CreateGame() {
   const navigate = useNavigate();
   const { playerId, playerName, connect, joinGame } = useGameStore();
-  const { createTable, isConnected } = useSolanaPoker();
+  const { createTable, joinTable, isConnected, getTableData } =
+    useSolanaPoker();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,7 +57,29 @@ export function CreateGame() {
         smallBlind,
       );
 
-      console.log("Table created on blockchain:", { signature, tablePDA });
+      console.log("✅ Table created on blockchain:", { signature, tablePDA });
+
+      // Wait for blockchain state to propagate (same as test does)
+      console.log("⏳ Waiting for blockchain state to propagate...");
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay
+
+      // Host joins their own table
+      console.log("🎲 Host joining table...");
+      const joinSignature = await joinTable(tablePDA, buyInMin);
+      console.log("✅ Host joined table:", joinSignature);
+
+      // Verify the join was successful by checking table state
+      console.log("🔍 Verifying table state after join...");
+      await new Promise((resolve) => setTimeout(resolve, 500)); // Wait for state update
+
+      const tableData = await getTableData(tablePDA);
+      console.log("📊 Table player count:", tableData.playerCount);
+
+      if (tableData.playerCount === 0) {
+        throw new Error(
+          "Join table transaction did not update player count. Please try again.",
+        );
+      }
 
       // Also create game on backend for coordination
       const result = await api.createGame({

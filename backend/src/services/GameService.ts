@@ -23,8 +23,11 @@ class GameServiceClass {
     hostName: string,
     name: string,
     settings: GameSettings,
+    hostWalletAddress?: string,
+    hostPlayerSeatAddress?: string,
     tablePDA?: string,
     tableId?: string,
+    gameAddress?: string,
   ): { gameId: string; inviteCode: string } {
     const gameId = uuidv4();
     const inviteCode = this.generateInviteCode();
@@ -40,6 +43,8 @@ class GameServiceClass {
       isAllIn: false,
       isConnected: true,
       seatIndex: 0,
+      walletAddress: hostWalletAddress,
+      playerSeatAddress: hostPlayerSeatAddress,
     };
 
     const gameState: GameState = {
@@ -51,6 +56,7 @@ class GameServiceClass {
       players: [host],
       tablePDA,
       tableId,
+      gameAddress,
       deck: [],
       communityCards: [],
       pot: 0,
@@ -100,6 +106,8 @@ class GameServiceClass {
     gameId: string,
     playerId: string,
     playerName: string,
+    walletAddress?: string,
+    playerSeatAddress?: string,
   ): { success: boolean; error?: string; game?: GameState } {
     const game = this.games.get(gameId);
 
@@ -133,6 +141,8 @@ class GameServiceClass {
       isAllIn: false,
       isConnected: true,
       seatIndex,
+      walletAddress,
+      playerSeatAddress,
     };
 
     game.players.push(player);

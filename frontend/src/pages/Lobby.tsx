@@ -53,55 +53,33 @@ export function Lobby() {
     }
   }, [isConnected, gameId, gameState, joinGame]);
 
-  // Join the blockchain table when joining a game (non-hosts only)
-  useEffect(() => {
-    const shouldJoinTable =
-      gameState &&
-      isWalletConnected &&
-      !hasJoinedTable &&
-      !blockchainLoading &&
-      gameState.hostId !== playerId &&
-      gameState.tablePDA &&
-      gameState.settings;
+  // Manual blockchain join handler
+  const handleJoinBlockchainTable = async () => {
+    if (!gameState || !isWalletConnected) return;
 
-    if (shouldJoinTable) {
-      const joinBlockchainTable = async () => {
-        try {
-          setBlockchainLoading(true);
-          setBlockchainError("");
+    try {
+      setBlockchainLoading(true);
+      setBlockchainError("");
 
-          const lamportsPerChip = BigInt(1000000);
-          const buyIn =
-            BigInt(gameState!.settings.startingChips) * lamportsPerChip;
+      const lamportsPerChip = BigInt(1000000);
+      const buyIn = BigInt(gameState.settings.startingChips) * lamportsPerChip;
 
-          console.log("Joining blockchain table:", {
-            tablePDA: gameState!.tablePDA,
-            buyIn: buyIn.toString(),
-          });
+      console.log("Joining blockchain table:", {
+        tablePDA: gameState.tablePDA,
+        buyIn: buyIn.toString(),
+        walletConnected: isWalletConnected,
+      });
 
-          const signature = await joinTable(gameState!.tablePDA!, buyIn);
-          console.log("Joined blockchain table:", signature);
-          setHasJoinedTable(true);
-        } catch (err: any) {
-          console.error("Failed to join blockchain table:", err);
-          setBlockchainError(err?.message || "Failed to join blockchain table");
-          // Don't retry automatically on error
-          setHasJoinedTable(true);
-        } finally {
-          setBlockchainLoading(false);
-        }
-      };
-
-      joinBlockchainTable();
+      const signature = await joinTable(gameState.tablePDA!, buyIn);
+      console.log("✅ Joined blockchain table:", signature);
+      setHasJoinedTable(true);
+    } catch (err: any) {
+      console.error("❌ Failed to join blockchain table:", err);
+      setBlockchainError(err?.message || "Failed to join blockchain table");
+    } finally {
+      setBlockchainLoading(false);
     }
-  }, [
-    gameState?.id,
-    gameState?.tablePDA,
-    isWalletConnected,
-    hasJoinedTable,
-    blockchainLoading,
-    playerId,
-  ]);
+  };
 
   useEffect(() => {
     if (gameState?.status === "playing") {
@@ -253,6 +231,33 @@ export function Lobby() {
             ))}
           </div>
         </div>
+
+        {/* Join blockchain table button (for non-hosts) */}
+        {!isHost && !hasJoinedTable && gameState.tablePDA && (
+          <button
+            onClick={handleJoinBlockchainTable}
+            disabled={blockchainLoading || !isWalletConnected}
+            className="w-full py-4 mb-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            {blockchainLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Joining table on blockchain...
+              </>
+            ) : (
+              <>
+                <Users className="w-5 h-5" />
+                Join Table on Blockchain
+              </>
+            )}
+          </button>
+        )}
+
+        {!isHost && hasJoinedTable && (
+          <div className="text-center py-4 mb-4 text-green-400 bg-green-900/20 rounded-lg border border-green-600/50">
+            ✅ Joined blockchain table successfully
+          </div>
+        )}
 
         {isHost ? (
           <button

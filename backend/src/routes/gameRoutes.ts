@@ -6,8 +6,17 @@ const router = Router();
 
 // Create a new game
 router.post("/games", (req: Request, res: Response) => {
-  const { hostId, hostName, name, settings, tablePDA, tableId } =
-    req.body as CreateGameRequest;
+  const {
+    hostId,
+    hostName,
+    name,
+    settings,
+    hostWalletAddress,
+    hostPlayerSeatAddress,
+    tablePDA,
+    tableId,
+    gameAddress,
+  } = req.body as CreateGameRequest;
 
   if (!hostId || !hostName || !name || !settings) {
     return res.status(400).json({ error: "Missing required fields" });
@@ -18,8 +27,11 @@ router.post("/games", (req: Request, res: Response) => {
     hostName,
     name,
     settings,
+    hostWalletAddress,
+    hostPlayerSeatAddress,
     tablePDA,
     tableId,
+    gameAddress,
   );
   res.status(201).json(result);
 });

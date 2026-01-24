@@ -1,6 +1,7 @@
-import type { Player } from '../../../../shared/types';
-import { PlayingCard } from './PlayingCard';
-import clsx from 'clsx';
+import type { Player } from "../../../../shared/types";
+import { PlayingCard } from "./PlayingCard";
+import { useCardDecryption } from "../../hooks/useCardDecryption";
+import clsx from "clsx";
 
 interface PlayerSeatProps {
   player: Player;
@@ -10,6 +11,7 @@ interface PlayerSeatProps {
   isSmallBlind: boolean;
   isBigBlind: boolean;
   showCards: boolean;
+  playerSeatAddress?: string; // Solana PDA for this player's seat
 }
 
 export function PlayerSeat({
@@ -20,26 +22,40 @@ export function PlayerSeat({
   isSmallBlind,
   isBigBlind,
   showCards,
+  playerSeatAddress,
 }: PlayerSeatProps) {
+  const { myCards, decryptMyCards, isDecrypting, error } = useCardDecryption();
+
+  // Use decrypted cards if available and current player, otherwise use player.cards
+  const displayCards =
+    isCurrentPlayer && myCards.length > 0 ? myCards : player.cards;
+
+  const handleRevealCards = async () => {
+    if (!playerSeatAddress) {
+      console.error("No player seat address provided");
+      return;
+    }
+    await decryptMyCards(playerSeatAddress);
+  };
   return (
     <div
       className={clsx(
-        'flex flex-col items-center p-3 rounded-xl transition-all',
-        isCurrentTurn && 'ring-2 ring-yellow-400 bg-yellow-900/20',
-        player.folded && 'opacity-50'
+        "flex flex-col items-center p-3 rounded-xl transition-all",
+        isCurrentTurn && "ring-2 ring-yellow-400 bg-yellow-900/20",
+        player.folded && "opacity-50",
       )}
     >
       {/* Avatar */}
       <div className="relative mb-2">
         <div
           className={clsx(
-            'w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg',
-            isCurrentPlayer ? 'bg-blue-600' : 'bg-gray-600'
+            "w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg",
+            isCurrentPlayer ? "bg-blue-600" : "bg-gray-600",
           )}
         >
           {player.name.charAt(0).toUpperCase()}
         </div>
-        
+
         {/* Position indicators */}
         <div className="absolute -top-1 -right-1 flex gap-0.5">
           {isDealer && (
@@ -71,21 +87,44 @@ export function PlayerSeat({
       </p>
 
       {/* Cards */}
-      <div className="flex gap-1 mt-2">
-        {player.cards.length > 0 ? (
-          player.cards.map((card, i) => (
-            <PlayingCard
-              key={i}
-              card={showCards || isCurrentPlayer ? card : undefined}
-              hidden={!showCards && !isCurrentPlayer}
-              size="sm"
-            />
-          ))
-        ) : (
-          <>
-            <PlayingCard hidden size="sm" />
-            <PlayingCard hidden size="sm" />
-          </>
+      <div className="flex flex-col items-center gap-2 mt-2">
+        <div className="flex gap-1">
+          {displayCards.length > 0 ? (
+            displayCards.map((card, i) => (
+              <PlayingCard
+                key={i}
+                card={showCards || isCurrentPlayer ? card : undefined}
+                hidden={!showCards && !isCurrentPlayer}
+                size="sm"
+              />
+            ))
+          ) : (
+            <>
+              <PlayingCard hidden size="sm" />
+              <PlayingCard hidden size="sm" />
+            </>
+          )}
+        </div>
+
+        {/* Reveal button - only show for current player if cards haven't been decrypted yet */}
+        {isCurrentPlayer && playerSeatAddress && myCards.length === 0 && (
+          <button
+            onClick={handleRevealCards}
+            disabled={isDecrypting}
+            className={clsx(
+              "px-3 py-1 text-xs font-semibold rounded transition-all",
+              isDecrypting
+                ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700 text-white",
+            )}
+          >
+            {isDecrypting ? "Decrypting..." : "Reveal Cards"}
+          </button>
+        )}
+
+        {/* Error message */}
+        {isCurrentPlayer && error && (
+          <p className="text-red-400 text-xs mt-1">{error}</p>
         )}
       </div>
 
