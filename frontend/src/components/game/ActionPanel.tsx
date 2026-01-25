@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ActionType, PlayerAction } from '../../../../shared/types';
-import clsx from 'clsx';
+import { X } from 'lucide-react';
 
 interface ActionPanelProps {
   validActions: ActionType[];
@@ -37,30 +37,18 @@ export function ActionPanel({
   const handleAllIn = () => onAction({ type: 'all-in' });
 
   return (
-    <div className="bg-gray-800 rounded-xl p-4 shadow-xl">
-      {/* Timer */}
-      <div className="mb-4">
-        <div className="flex justify-between text-sm text-gray-400 mb-1">
-          <span>Time Remaining</span>
-          <span>{timeRemaining}s</span>
-        </div>
-        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-          <div
-            className={clsx(
-              'h-full transition-all duration-1000',
-              timeRemaining > 10 ? 'bg-green-500' : timeRemaining > 5 ? 'bg-yellow-500' : 'bg-red-500'
-            )}
-            style={{ width: `${(timeRemaining / 30) * 100}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Raise slider */}
+    <div className="flex flex-col items-end gap-3">
+      {/* Raise slider popup */}
       {showRaiseSlider && validActions.includes('raise') && (
-        <div className="mb-4 p-3 bg-gray-700 rounded-lg">
-          <div className="flex justify-between text-sm text-gray-300 mb-2">
-            <span>Raise to:</span>
-            <span className="text-yellow-400 font-semibold">${raiseAmount}</span>
+        <div className="bg-gray-900/95 backdrop-blur-sm rounded-2xl p-4 shadow-2xl border border-gray-700 w-64">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-white font-semibold">Raise Amount</span>
+            <button onClick={() => setShowRaiseSlider(false)} className="text-gray-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="text-center mb-3">
+            <span className="text-yellow-400 font-bold text-2xl">${raiseAmount.toLocaleString()}</span>
           </div>
           <input
             type="range"
@@ -68,85 +56,96 @@ export function ActionPanel({
             max={maxRaise}
             value={raiseAmount}
             onChange={(e) => setRaiseAmount(parseInt(e.target.value))}
-            className="w-full"
+            className="w-full mb-2"
           />
-          <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <div className="flex justify-between text-xs text-gray-400 mb-3">
             <span>${minRaise}</span>
             <span>${maxRaise}</span>
           </div>
-          <div className="flex gap-2 mt-3">
+          <div className="grid grid-cols-4 gap-2 mb-3">
             <button
               onClick={() => setRaiseAmount(minRaise)}
-              className="flex-1 py-1 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded"
+              className="py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg"
             >
               Min
             </button>
             <button
               onClick={() => setRaiseAmount(Math.floor(maxRaise / 2))}
-              className="flex-1 py-1 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded"
+              className="py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg"
             >
               1/2
             </button>
             <button
               onClick={() => setRaiseAmount(Math.floor(maxRaise * 0.75))}
-              className="flex-1 py-1 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded"
+              className="py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg"
             >
               3/4
             </button>
             <button
               onClick={() => setRaiseAmount(maxRaise)}
-              className="flex-1 py-1 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded"
+              className="py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg"
             >
               Max
             </button>
           </div>
+          <button
+            onClick={handleRaise}
+            className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg"
+          >
+            Confirm Raise
+          </button>
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex gap-2">
+      {/* Action buttons - circular style */}
+      <div className="flex gap-3">
         {validActions.includes('fold') && (
           <button
             onClick={handleFold}
-            className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
+            className="w-16 h-16 bg-red-600/90 hover:bg-red-600 backdrop-blur-sm rounded-full flex flex-col items-center justify-center text-white shadow-lg transition-all hover:scale-110"
           >
-            Fold
+            <X className="w-6 h-6" />
+            <span className="text-xs font-semibold mt-0.5">Fold</span>
           </button>
         )}
 
         {validActions.includes('check') && (
           <button
             onClick={handleCheck}
-            className="flex-1 py-3 bg-gray-600 hover:bg-gray-500 text-white font-semibold rounded-lg transition-colors"
+            className="w-16 h-16 bg-gray-700/90 hover:bg-gray-600 backdrop-blur-sm rounded-full flex flex-col items-center justify-center text-white shadow-lg transition-all hover:scale-110"
           >
-            Check
+            <span className="text-2xl">✓</span>
+            <span className="text-xs font-semibold">Check</span>
           </button>
         )}
 
         {validActions.includes('call') && (
           <button
             onClick={handleCall}
-            className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+            className="w-16 h-16 bg-blue-600/90 hover:bg-blue-600 backdrop-blur-sm rounded-full flex flex-col items-center justify-center text-white shadow-lg transition-all hover:scale-110"
           >
-            Call ${callAmount}
+            <span className="text-xs font-bold">${callAmount}</span>
+            <span className="text-xs font-semibold">Call</span>
           </button>
         )}
 
         {validActions.includes('raise') && (
           <button
-            onClick={() => showRaiseSlider ? handleRaise() : setShowRaiseSlider(true)}
-            className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+            onClick={() => setShowRaiseSlider(true)}
+            className="w-16 h-16 bg-green-600/90 hover:bg-green-600 backdrop-blur-sm rounded-full flex flex-col items-center justify-center text-white shadow-lg transition-all hover:scale-110"
           >
-            {showRaiseSlider ? `Raise to $${raiseAmount}` : 'Raise'}
+            <span className="text-2xl">↑</span>
+            <span className="text-xs font-semibold">Raise</span>
           </button>
         )}
 
         {validActions.includes('all-in') && (
           <button
             onClick={handleAllIn}
-            className="flex-1 py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-lg transition-colors"
+            className="w-16 h-16 bg-yellow-600/90 hover:bg-yellow-600 backdrop-blur-sm rounded-full flex flex-col items-center justify-center text-white shadow-lg transition-all hover:scale-110"
           >
-            All In
+            <span className="text-lg font-bold">C</span>
+            <span className="text-xs font-semibold">All In</span>
           </button>
         )}
       </div>

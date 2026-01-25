@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores/gameStore';
 import { PokerTable } from '../components/game/PokerTable';
-import { ActionPanel } from '../components/game/ActionPanel';
 import { PlayingCard } from '../components/game/PlayingCard';
 import { Loader2, Trophy } from 'lucide-react';
 
@@ -55,11 +54,8 @@ export function Game() {
     );
   }
 
-  const currentPlayer = gameState.players.find((p) => p.id === playerId);
-  const isMyTurn = currentTurnPlayerId === playerId;
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
       {/* Winners modal */}
       {winners && winners.length > 0 && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
@@ -138,54 +134,14 @@ export function Game() {
       )}
 
       {/* Main game area */}
-      <div className="max-w-6xl mx-auto">
-        <PokerTable
-          gameState={gameState}
-          currentPlayerId={playerId!}
-          currentTurnPlayerId={currentTurnPlayerId}
-        />
-
-        {/* Player's cards (larger view) */}
-        {currentPlayer && currentPlayer.cards.length > 0 && (
-          <div className="flex justify-center gap-3 mt-4">
-            {currentPlayer.cards.map((card, i) => (
-              <PlayingCard key={i} card={card} size="lg" />
-            ))}
-          </div>
-        )}
-
-        {/* Action panel */}
-        {isMyTurn && currentPlayer && !currentPlayer.folded && (
-          <div className="max-w-md mx-auto mt-6">
-            <ActionPanel
-              validActions={validActions}
-              currentBet={gameState.currentBet}
-              playerBet={currentPlayer.bet}
-              playerChips={currentPlayer.chips}
-              minRaise={gameState.minRaise}
-              onAction={(action) => performAction(gameId!, action)}
-              timeRemaining={timeRemaining}
-            />
-          </div>
-        )}
-
-        {/* Waiting message */}
-        {!isMyTurn && (
-          <div className="text-center mt-6 text-gray-400">
-            {currentTurnPlayerId ? (
-              <p>
-                Waiting for{' '}
-                <span className="text-white font-semibold">
-                  {gameState.players.find((p) => p.id === currentTurnPlayerId)?.name}
-                </span>{' '}
-                to act...
-              </p>
-            ) : (
-              <p>Waiting...</p>
-            )}
-          </div>
-        )}
-      </div>
+      <PokerTable
+        gameState={gameState}
+        currentPlayerId={playerId!}
+        currentTurnPlayerId={currentTurnPlayerId}
+        validActions={validActions}
+        timeRemaining={timeRemaining}
+        onAction={(action) => performAction(gameId!, action)}
+      />
     </div>
   );
 }
