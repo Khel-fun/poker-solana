@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { Card } from '../../../../shared/types';
 import clsx from 'clsx';
 
@@ -5,6 +6,7 @@ interface PlayingCardProps {
   card?: Card;
   hidden?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  style?: CSSProperties;
 }
 
 const suitSymbols: Record<string, string> = {
@@ -27,7 +29,7 @@ const sizes = {
   lg: 'w-20 h-28 text-lg',
 };
 
-export function PlayingCard({ card, hidden = false, size = 'md' }: PlayingCardProps) {
+export function PlayingCard({ card, hidden = false, size = 'md', style }: PlayingCardProps) {
   if (hidden || !card) {
     return (
       <div
@@ -36,6 +38,7 @@ export function PlayingCard({ card, hidden = false, size = 'md' }: PlayingCardPr
           'rounded-lg bg-gradient-to-br from-blue-800 to-blue-900 border-2 border-blue-700 shadow-lg',
           'flex items-center justify-center'
         )}
+        style={style}
       >
         <div className="w-3/4 h-3/4 rounded border border-blue-600 bg-blue-800/50" />
       </div>
@@ -49,6 +52,7 @@ export function PlayingCard({ card, hidden = false, size = 'md' }: PlayingCardPr
         'rounded-lg bg-white border border-gray-300 shadow-lg',
         'flex flex-col items-center justify-center p-1'
       )}
+      style={style}
     >
       <span className={clsx('font-bold', suitColors[card.suit])}>
         {card.rank}

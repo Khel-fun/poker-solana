@@ -21,7 +21,7 @@ export default function NewGame(){
           {/* Table Surface - Fills the wrapper, has the rotation */}
           <div className="w-full h-full transform-style-3d rotate-x-[20deg] transition-transform duration-500 z-10">
             <img
-              src="/table.jpg"
+              src="/table.png"
               alt="Poker Table"
               className="absolute inset-0 w-full h-full object-contain drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
             />
