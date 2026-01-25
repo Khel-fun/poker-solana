@@ -171,15 +171,50 @@ pub fn get_cards(deck: [Field; DECK_SIZE]) -> [Field; CARDS_TO_DEAL] {
     cards
 }
 
+/// Commitments of card allocations to respective players
+///
+/// # Arguments
+/// * `cards` - The cards array.
+/// * `players` - The players array.
+/// * `player_status` - The player status array - if player is not in the game, commitment is 0
+///
+/// # Returns
+/// An array of commitments for the cards.
+pub fn calculate_commitment(
+    cards: [Field; 10],
+    players: [Field; 5],
+    player_status: [bool; 5],
+) -> [Field; 10] {
+    let mut commitments: [Field; 10] = [0; 10];
+    let mut k = 0;
+
+    for i in 0..cards.len() {
+        let player: Field = players[k];
+
+        commitments[i] = if player_status[k] {
+            Poseidon2::hash([cards[i], player], 2)
+        } else {
+            0
+        };
+
+        if (i % 2 != 0) {
+            k += 1;
+        }
+    }
+
+    commitments
+}
+
 // =============================================================================
 // Test Module
 // =============================================================================
 
 mod tests {
     use super::{
-        CARDS_TO_DEAL, DECK_SIZE, derive_salt, fisher_yates_shuffle, get_cards, hash_card_in_deck,
-        merkle_a_pair, merkle_root,
+        calculate_commitment, CARDS_TO_DEAL, DECK_SIZE, derive_salt, fisher_yates_shuffle,
+        get_cards, hash_card_in_deck, merkle_a_pair, merkle_root,
     };
+    use poseidon::poseidon2::Poseidon2;
 
     // -------------------------------------------------------------------------
     // Fisher-Yates Shuffle Tests
@@ -399,6 +434,239 @@ mod tests {
         assert(root == root_verify, "Root should match on re-computation");
         for i in 0..CARDS_TO_DEAL {
             assert(cards[i] == cards_verify[i], "Cards should match on re-computation");
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Calculate Commitment Tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_calculate_commitment_is_deterministic() {
+        // Same inputs must produce the same commitments
+        let cards: [Field; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let players: [Field; 5] = [100, 200, 300, 400, 500];
+        let player_status: [bool; 5] = [true, true, true, true, true];
+
+        let commitments1 = calculate_commitment(cards, players, player_status);
+        let commitments2 = calculate_commitment(cards, players, player_status);
+
+        for i in 0..10 {
+            assert(commitments1[i] == commitments2[i], "Commitments must be deterministic");
+        }
+    }
+
+    #[test]
+    fn test_calculate_commitment_all_players_active() {
+        // When all players are active, all commitments should be non-zero
+        let cards: [Field; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let players: [Field; 5] = [100, 200, 300, 400, 500];
+        let player_status: [bool; 5] = [true, true, true, true, true];
+
+        let commitments = calculate_commitment(cards, players, player_status);
+
+        for i in 0..10 {
+            assert(commitments[i] != 0, "Active player commitments should be non-zero");
+        }
+    }
+
+    #[test]
+    fn test_calculate_commitment_all_players_inactive() {
+        // When all players are inactive, all commitments should be zero
+        let cards: [Field; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let players: [Field; 5] = [100, 200, 300, 400, 500];
+        let player_status: [bool; 5] = [false, false, false, false, false];
+
+        let commitments = calculate_commitment(cards, players, player_status);
+
+        for i in 0..10 {
+            assert(commitments[i] == 0, "Inactive player commitments should be zero");
+        }
+    }
+
+    #[test]
+    fn test_calculate_commitment_partial_players() {
+        // Mixed active/inactive players
+        let cards: [Field; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let players: [Field; 5] = [100, 200, 300, 400, 500];
+        // Players 0, 2, 4 are active; players 1, 3 are inactive
+        let player_status: [bool; 5] = [true, false, true, false, true];
+
+        let commitments = calculate_commitment(cards, players, player_status);
+
+        // Player 0 (cards 0, 1) - active
+        assert(commitments[0] != 0, "Player 0 card 0 should have commitment");
+        assert(commitments[1] != 0, "Player 0 card 1 should have commitment");
+
+        // Player 1 (cards 2, 3) - inactive
+        assert(commitments[2] == 0, "Player 1 card 0 should be zero");
+        assert(commitments[3] == 0, "Player 1 card 1 should be zero");
+
+        // Player 2 (cards 4, 5) - active
+        assert(commitments[4] != 0, "Player 2 card 0 should have commitment");
+        assert(commitments[5] != 0, "Player 2 card 1 should have commitment");
+
+        // Player 3 (cards 6, 7) - inactive
+        assert(commitments[6] == 0, "Player 3 card 0 should be zero");
+        assert(commitments[7] == 0, "Player 3 card 1 should be zero");
+
+        // Player 4 (cards 8, 9) - active
+        assert(commitments[8] != 0, "Player 4 card 0 should have commitment");
+        assert(commitments[9] != 0, "Player 4 card 1 should have commitment");
+    }
+
+    #[test]
+    fn test_calculate_commitment_card_player_mapping() {
+        // Verify that each pair of cards maps to the correct player
+        // Card 0,1 -> Player 0; Card 2,3 -> Player 1; etc.
+        let cards: [Field; 10] = [05, 10, 15, 20, 25, 30, 35, 40, 45, 50];
+        let players: [Field; 5] = [1, 2, 3, 4, 5];
+        let player_status: [bool; 5] = [true, true, true, true, true];
+
+        let commitments = calculate_commitment(cards, players, player_status);
+
+        // Manually verify the expected commitment hashes
+        // commitment[i] = Poseidon2::hash([cards[i], players[i/2]], 2)
+        let expected_0 = Poseidon2::hash([05, 1], 2); // card 0, player 0
+        let expected_1 = Poseidon2::hash([10, 1], 2); // card 1, player 0
+        let expected_2 = Poseidon2::hash([15, 2], 2); // card 2, player 1
+        let expected_3 = Poseidon2::hash([20, 2], 2); // card 3, player 1
+        let expected_4 = Poseidon2::hash([25, 3], 2); // card 4, player 2
+        let expected_5 = Poseidon2::hash([30, 3], 2); // card 5, player 2
+        let expected_6 = Poseidon2::hash([35, 4], 2); // card 6, player 3
+        let expected_7 = Poseidon2::hash([40, 4], 2); // card 7, player 3
+        let expected_8 = Poseidon2::hash([45, 5], 2); // card 8, player 4
+        let expected_9 = Poseidon2::hash([50, 5], 2); // card 9, player 4
+
+        assert(commitments[0] == expected_0, "Card 0 commitment mismatch");
+        assert(commitments[1] == expected_1, "Card 1 commitment mismatch");
+        assert(commitments[2] == expected_2, "Card 2 commitment mismatch");
+        assert(commitments[3] == expected_3, "Card 3 commitment mismatch");
+        assert(commitments[4] == expected_4, "Card 4 commitment mismatch");
+        assert(commitments[5] == expected_5, "Card 5 commitment mismatch");
+        assert(commitments[6] == expected_6, "Card 6 commitment mismatch");
+        assert(commitments[7] == expected_7, "Card 7 commitment mismatch");
+        assert(commitments[8] == expected_8, "Card 8 commitment mismatch");
+        assert(commitments[9] == expected_9, "Card 9 commitment mismatch");
+    }
+
+    #[test]
+    fn test_calculate_commitment_different_players_different_commitments() {
+        // Same card with different players should produce different commitments
+        let cards: [Field; 10] = [42, 42, 42, 42, 42, 42, 42, 42, 42, 42]; // all same card
+        let players: [Field; 5] = [1, 2, 3, 4, 5]; // different players
+        let player_status: [bool; 5] = [true, true, true, true, true];
+
+        let commitments = calculate_commitment(cards, players, player_status);
+
+        // Commitments for the same card but different players should differ
+        // Group by player: (0,1), (2,3), (4,5), (6,7), (8,9)
+        // Compare commitments across different player groups
+        assert(
+            commitments[0] != commitments[2],
+            "Different players should have different commitments",
+        );
+        assert(
+            commitments[2] != commitments[4],
+            "Different players should have different commitments",
+        );
+        assert(
+            commitments[4] != commitments[6],
+            "Different players should have different commitments",
+        );
+        assert(
+            commitments[6] != commitments[8],
+            "Different players should have different commitments",
+        );
+    }
+
+    #[test]
+    fn test_calculate_commitment_different_cards_same_player() {
+        // Different cards for the same player should produce different commitments
+        let cards: [Field; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; // different cards
+        let players: [Field; 5] = [100, 100, 100, 100, 100]; // all same player
+        let player_status: [bool; 5] = [true, true, true, true, true];
+
+        let commitments = calculate_commitment(cards, players, player_status);
+
+        // Each card should produce a unique commitment
+        for i in 0..10 {
+            for j in (i + 1)..10 {
+                assert(
+                    commitments[i] != commitments[j],
+                    "Different cards should have different commitments",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_calculate_commitment_with_zero_values() {
+        // Edge case: zero-valued cards and players
+        let cards: [Field; 10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let players: [Field; 5] = [0, 0, 0, 0, 0];
+        let player_status: [bool; 5] = [true, true, true, true, true];
+
+        let commitments = calculate_commitment(cards, players, player_status);
+
+        // All commitments should be the same since all inputs are identical
+        let expected = Poseidon2::hash([0, 0], 2);
+        for i in 0..10 {
+            assert(commitments[i] == expected, "Zero values should still produce valid hash");
+        }
+    }
+
+    #[test]
+    fn test_calculate_commitment_single_player_active() {
+        // Only one player is active
+        let cards: [Field; 10] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        let players: [Field; 5] = [100, 200, 300, 400, 500];
+        let player_status: [bool; 5] = [false, false, true, false, false]; // only player 2 active
+
+        let commitments = calculate_commitment(cards, players, player_status);
+
+        // Only cards 4 and 5 (belonging to player 2) should have commitments
+        assert(commitments[0] == 0, "Player 0 should be inactive");
+        assert(commitments[1] == 0, "Player 0 should be inactive");
+        assert(commitments[2] == 0, "Player 1 should be inactive");
+        assert(commitments[3] == 0, "Player 1 should be inactive");
+        assert(commitments[4] != 0, "Player 2 card 0 should have commitment");
+        assert(commitments[5] != 0, "Player 2 card 1 should have commitment");
+        assert(commitments[6] == 0, "Player 3 should be inactive");
+        assert(commitments[7] == 0, "Player 3 should be inactive");
+        assert(commitments[8] == 0, "Player 4 should be inactive");
+        assert(commitments[9] == 0, "Player 4 should be inactive");
+    }
+
+    // -------------------------------------------------------------------------
+    // Reveal Circuit Integration Test
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_commitment_verification_workflow() {
+        // Simulates the reveal circuit verification workflow
+        let cards: [Field; 10] = [5, 15, 25, 35, 45, 10, 20, 30, 40, 50];
+        let players: [Field; 5] = [0xAAA, 0xBBB, 0xCCC, 0xDDD, 0xEEE];
+        let player_status: [bool; 5] = [true, true, true, true, true];
+
+        // Step 1: Calculate commitments (done during deal phase)
+        let onchain_commitments = calculate_commitment(cards, players, player_status);
+
+        // Step 2: Later, recalculate commitments (done during reveal phase)
+        let reveal_commitments = calculate_commitment(cards, players, player_status);
+
+        // Step 3: Verify they match (as the reveal circuit would do)
+        for i in 0..player_status.len() {
+            if player_status[i] {
+                assert(
+                    reveal_commitments[2 * i] == onchain_commitments[2 * i],
+                    "Card commitment mismatch at showdown",
+                );
+                assert(
+                    reveal_commitments[2 * i + 1] == onchain_commitments[2 * i + 1],
+                    "Card commitment mismatch at showdown for player",
+                );
+            }
         }
     }
 }
