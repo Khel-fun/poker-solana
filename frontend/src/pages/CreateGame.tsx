@@ -10,8 +10,13 @@ import { WalletButton } from "../components/WalletButton";
 export function CreateGame() {
   const navigate = useNavigate();
   const { playerId, playerName, connect, joinGame } = useGameStore();
-  const { createTable, joinTable, isConnected, getTableData } =
-    useSolanaPoker();
+  const {
+    createTable,
+    joinTable,
+    isConnected,
+    walletAddress,
+    getPlayerSeatPDA,
+  } = useSolanaPoker();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -68,20 +73,14 @@ export function CreateGame() {
       const joinSignature = await joinTable(tablePDA, buyInMin);
       console.log("✅ Host joined table:", joinSignature);
 
-      // Verify the join was successful by checking table state
-      console.log("🔍 Verifying table state after join...");
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Wait for state update
+      // Derive and store player seat PDA for host
+      const { PublicKey } = await import("@solana/web3.js");
+      const tablePubkey = new PublicKey(tablePDA);
+      const playerPubkey = new PublicKey(walletAddress!);
+      const playerSeatPDA = await getPlayerSeatPDA(tablePubkey, playerPubkey);
+      console.log("📍 Host Player Seat PDA:", playerSeatPDA.toBase58());
 
-      const tableData = await getTableData(tablePDA);
-      console.log("📊 Table player count:", tableData.playerCount);
-
-      if (tableData.playerCount === 0) {
-        throw new Error(
-          "Join table transaction did not update player count. Please try again.",
-        );
-      }
-
-      // Also create game on backend for coordination
+      // Create game on backend for coordination
       const result = await api.createGame({
         hostId: playerId,
         hostName: playerName,
@@ -90,6 +89,12 @@ export function CreateGame() {
         tablePDA,
         tableId: tableId.toString(),
       });
+
+      // Store playerSeatAddress in localStorage for this game
+      localStorage.setItem(
+        `playerSeat_${result.gameId}_${playerId}`,
+        playerSeatPDA.toBase58(),
+      );
 
       connect();
 

@@ -9,6 +9,8 @@ interface PokerTableProps {
   currentPlayerId: string;
   currentTurnPlayerId: string | null;
   gameAddress?: string; // Solana PDA for the poker game
+  tableAddress?: string; // Solana PDA for the poker table
+  gameId?: bigint; // Game ID for revealHand calls
 }
 
 const seatPositions = [
@@ -36,6 +38,8 @@ export function PokerTable({
   currentPlayerId,
   currentTurnPlayerId,
   gameAddress,
+  tableAddress,
+  gameId,
 }: PokerTableProps) {
   const { communityCards, decryptCommunity, isDecrypting, error } =
     useCardDecryption();
@@ -145,6 +149,8 @@ export function PokerTable({
             }
             showCards={isShowdown}
             playerSeatAddress={player.playerSeatAddress}
+            tableAddress={tableAddress}
+            gameId={gameId}
           />
         </div>
       ))}

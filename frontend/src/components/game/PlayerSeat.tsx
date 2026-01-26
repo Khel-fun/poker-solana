@@ -12,6 +12,8 @@ interface PlayerSeatProps {
   isBigBlind: boolean;
   showCards: boolean;
   playerSeatAddress?: string; // Solana PDA for this player's seat
+  tableAddress?: string; // Solana PDA for the poker table
+  gameId?: bigint; // Game ID for revealHand calls
 }
 
 export function PlayerSeat({
@@ -23,19 +25,35 @@ export function PlayerSeat({
   isBigBlind,
   showCards,
   playerSeatAddress,
+  tableAddress,
+  gameId,
 }: PlayerSeatProps) {
   const { myCards, decryptMyCards, isDecrypting, error } = useCardDecryption();
+
+  // Try to get playerSeatAddress from localStorage if not provided
+  // This is a workaround until backend properly tracks this
+  const effectivePlayerSeatAddress =
+    playerSeatAddress ||
+    (isCurrentPlayer
+      ? localStorage.getItem(
+          `playerSeat_${window.location.pathname.split("/").pop()}_${player.id}`,
+        )
+      : null);
 
   // Use decrypted cards if available and current player, otherwise use player.cards
   const displayCards =
     isCurrentPlayer && myCards.length > 0 ? myCards : player.cards;
 
   const handleRevealCards = async () => {
-    if (!playerSeatAddress) {
-      console.error("No player seat address provided");
+    if (!effectivePlayerSeatAddress || !tableAddress || !gameId) {
+      console.error("Missing required addresses or game ID", {
+        playerSeatAddress: effectivePlayerSeatAddress,
+        tableAddress,
+        gameId,
+      });
       return;
     }
-    await decryptMyCards(playerSeatAddress);
+    await decryptMyCards(effectivePlayerSeatAddress, tableAddress, gameId);
   };
   return (
     <div
@@ -107,20 +125,24 @@ export function PlayerSeat({
         </div>
 
         {/* Reveal button - only show for current player if cards haven't been decrypted yet */}
-        {isCurrentPlayer && playerSeatAddress && myCards.length === 0 && (
-          <button
-            onClick={handleRevealCards}
-            disabled={isDecrypting}
-            className={clsx(
-              "px-3 py-1 text-xs font-semibold rounded transition-all",
-              isDecrypting
-                ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 text-white",
-            )}
-          >
-            {isDecrypting ? "Decrypting..." : "Reveal Cards"}
-          </button>
-        )}
+        {isCurrentPlayer &&
+          effectivePlayerSeatAddress &&
+          tableAddress &&
+          gameId &&
+          myCards.length === 0 && (
+            <button
+              onClick={handleRevealCards}
+              disabled={isDecrypting}
+              className={clsx(
+                "px-3 py-1 text-xs font-semibold rounded transition-all",
+                isDecrypting
+                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 text-white",
+              )}
+            >
+              {isDecrypting ? "Decrypting..." : "Reveal Cards"}
+            </button>
+          )}
 
         {/* Error message */}
         {isCurrentPlayer && error && (

@@ -29,14 +29,17 @@ export const POKER_PROGRAM_ID = address(
   "2fS8A3rSY5zSJyc5kaCKhAhwjpLiRPhth1bTwNWmGNcm",
 );
 
+// Inco Lightning Program ID
+export const INCO_LIGHTNING_PROGRAM_ID = address(
+  "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj",
+);
+
 // System Program ID
 export const SYSTEM_PROGRAM_ID = address("11111111111111111111111111111111");
 
-// RPC endpoint 
-const RPC_HTTP_URL =
-  "https://api.devnet.solana.com";
-const RPC_WS_URL =
-  "wss://api.devnet.solana.com";
+// RPC endpoint
+const RPC_HTTP_URL = "https://api.devnet.solana.com";
+const RPC_WS_URL = "wss://api.devnet.solana.com";
 
 // Create RPC clients
 export const rpc = createSolanaRpc(RPC_HTTP_URL);
@@ -112,6 +115,28 @@ export async function getGamePDA(
 }
 
 /**
+ * Derives the PDA for a player seat
+ * Seeds: ["player_seat", table_pubkey, player_pubkey]
+ */
+export async function getPlayerSeatPDA(
+  table: Address,
+  player: Address,
+): Promise<[Address, number]> {
+  const addressEncoder = getAddressEncoder();
+
+  const [pda, bump] = await getProgramDerivedAddress({
+    programAddress: POKER_PROGRAM_ID,
+    seeds: [
+      new TextEncoder().encode("player_seat"),
+      addressEncoder.encode(table),
+      addressEncoder.encode(player),
+    ],
+  });
+
+  return [pda, bump];
+}
+
+/**
  * Creates a poker table instruction data
  * Instruction discriminator for create_table + arguments
  */
@@ -125,7 +150,7 @@ function createTableInstructionData(
   // Anchor discriminator for create_table
   // You may need to update this discriminator based on your actual IDL
   const discriminator = new Uint8Array([
-    0x60, 0x5b, 0x1f, 0x89, 0x6f, 0xa3, 0x8e, 0x7a,
+    0xd6, 0x8e, 0x83, 0xfa, 0xf2, 0x53, 0x87, 0xb9,
   ]);
 
   const data = new Uint8Array(8 + 8 + 1 + 8 + 8 + 8);
@@ -164,7 +189,7 @@ function joinTableInstructionData(buyIn: bigint): Uint8Array {
   // Anchor discriminator for join_table
   // You may need to update this discriminator based on your actual IDL
   const discriminator = new Uint8Array([
-    0xd4, 0x9e, 0x61, 0x47, 0x3c, 0x18, 0xe7, 0x0e,
+    0x0e, 0x75, 0x54, 0x33, 0x5f, 0x92, 0xab, 0x46,
   ]);
 
   const data = new Uint8Array(8 + 8);
@@ -181,20 +206,28 @@ function joinTableInstructionData(buyIn: bigint): Uint8Array {
 /**
  * Creates a start game instruction data
  */
-function startGameInstructionData(gameId: bigint): Uint8Array {
+function startGameInstructionData(
+  gameId: bigint,
+  frontendAccount: Address,
+): Uint8Array {
   // Anchor discriminator for start_game
-  // You may need to update this discriminator based on your actual IDL
   const discriminator = new Uint8Array([
-    0x8c, 0x1c, 0x4b, 0x58, 0xa8, 0x5e, 0x3a, 0x2d,
+    0xf9, 0x2f, 0xfc, 0xac, 0xb8, 0xa2, 0xf5, 0x0e,
   ]);
 
-  const data = new Uint8Array(8 + 8);
+  const addressEncoder = getAddressEncoder();
+  const frontendBytes = addressEncoder.encode(frontendAccount);
+
+  const data = new Uint8Array(8 + 8 + 32);
 
   // Discriminator
   data.set(discriminator, 0);
 
   // game_id: u64
   writeU64LE(data, gameId, 8);
+
+  // frontend_account: Pubkey (32 bytes)
+  data.set(frontendBytes, 16);
 
   return data;
 }
@@ -268,8 +301,9 @@ export async function joinTable(
   tableAddress: Address,
   buyIn: bigint,
 ): Promise<string> {
-  // Derive vault PDA
+  // Derive vault PDA and player seat PDA
   const [vaultPDA] = await getVaultPDA(tableAddress);
+  const [playerSeatPDA] = await getPlayerSeatPDA(tableAddress, signer.address);
 
   // Get latest blockhash
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
@@ -280,6 +314,7 @@ export async function joinTable(
     accounts: [
       { address: tableAddress, role: 1 /* AccountRole.WRITABLE */ },
       { address: vaultPDA, role: 1 /* AccountRole.WRITABLE */ },
+      { address: playerSeatPDA, role: 1 /* AccountRole.WRITABLE */ },
       { address: signer.address, role: 3 /* AccountRole.WRITABLE_SIGNER */ },
       { address: SYSTEM_PROGRAM_ID, role: 0 /* AccountRole.READONLY */ },
     ],
@@ -318,9 +353,13 @@ export async function startGame(
   signer: KeyPairSigner,
   tableAddress: Address,
   gameId: bigint,
+  frontendAccount?: Address,
 ): Promise<string> {
   // Derive game PDA
   const [gamePDA] = await getGamePDA(tableAddress, gameId);
+
+  // Use signer address as frontend account if not provided
+  const frontend = frontendAccount || signer.address;
 
   // Get latest blockhash
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
@@ -334,7 +373,7 @@ export async function startGame(
       { address: signer.address, role: 3 /* AccountRole.WRITABLE_SIGNER */ },
       { address: SYSTEM_PROGRAM_ID, role: 0 /* AccountRole.READONLY */ },
     ],
-    data: startGameInstructionData(gameId),
+    data: startGameInstructionData(gameId, frontend),
   };
 
   // Build transaction using pipe

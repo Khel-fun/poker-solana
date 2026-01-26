@@ -23,6 +23,8 @@ export function Lobby() {
     joinTable,
     startGame: startGameOnChain,
     isConnected: isWalletConnected,
+    walletAddress,
+    getPlayerSeatPDA,
   } = useSolanaPoker();
   const [blockchainLoading, setBlockchainLoading] = useState(false);
   const [blockchainError, setBlockchainError] = useState("");
@@ -55,7 +57,7 @@ export function Lobby() {
 
   // Manual blockchain join handler
   const handleJoinBlockchainTable = async () => {
-    if (!gameState || !isWalletConnected) return;
+    if (!gameState || !isWalletConnected || !walletAddress) return;
 
     try {
       setBlockchainLoading(true);
@@ -72,6 +74,22 @@ export function Lobby() {
 
       const signature = await joinTable(gameState.tablePDA!, buyIn);
       console.log("✅ Joined blockchain table:", signature);
+
+      // Derive player seat PDA
+      const { PublicKey } = await import("@solana/web3.js");
+      const tablePubkey = new PublicKey(gameState.tablePDA!);
+      const playerPubkey = new PublicKey(walletAddress);
+      const playerSeatPDA = await getPlayerSeatPDA(tablePubkey, playerPubkey);
+
+      console.log("📍 Player Seat PDA:", playerSeatPDA.toBase58());
+
+      // TODO: Send playerSeatAddress to backend via socket
+      // For now, we'll store it in localStorage as a workaround
+      localStorage.setItem(
+        `playerSeat_${gameState.id}_${playerId}`,
+        playerSeatPDA.toBase58(),
+      );
+
       setHasJoinedTable(true);
     } catch (err: any) {
       console.error("❌ Failed to join blockchain table:", err);
