@@ -151,7 +151,12 @@ export async function decryptHoleCards(
 }
 
 /**
- * Decrypt community cards from a PokerGame account
+ * Decrypt community cards from a PokerGame account (NEW ARCHITECTURE)
+ *
+ * The new architecture stores cards in:
+ * - deal_cards[10]: 10 hole cards (2 per player)
+ * - community_cards[5]: 5 community cards
+ * - shuffled_indices[5]: Determines which player gets which pair
  *
  * @param connection - Solana connection
  * @param gameAddress - The PokerGame PDA address
@@ -181,7 +186,7 @@ export async function decryptCommunityCards(
 
   const data = accountInfo.data;
 
-  // PokerGame layout (card_pool starts after fixed fields):
+  // PokerGame layout (NEW ARCHITECTURE):
   // 8 bytes: discriminator
   // 32 bytes: table
   // 8 bytes: game_id
@@ -198,19 +203,37 @@ export async function decryptCommunityCards(
   // 1 byte: blinds_posted
   // 1 byte: last_raiser
   // 8 bytes: last_raise_amount
-  // ---- card_pool starts here ----
-  // 240 bytes: card_pool (15 * 16 bytes)
+  // 16 bytes: shuffle_random (Euint128)
+  // 5 bytes: shuffled_indices [u8; 5]
+  // 160 bytes: deal_cards [Euint128; 10] (10 * 16)
+  // 80 bytes: community_cards [Euint128; 5] (5 * 16)
+  // ... rest
 
-  const CARD_POOL_OFFSET =
-    8 + 32 + 8 + 1 + 8 + 8 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 8; // = 82
+  const COMMUNITY_CARDS_OFFSET =
+    8 + // discriminator
+    32 + // table
+    8 + // game_id
+    1 + // stage
+    8 + // pot
+    8 + // current_bet
+    1 + // dealer_position
+    1 + // action_on
+    1 + // players_remaining
+    1 + // players_acted
+    1 + // player_count
+    1 + // folded_mask
+    1 + // all_in_mask
+    1 + // blinds_posted
+    1 + // last_raiser
+    8 + // last_raise_amount
+    16 + // shuffle_random
+    5 + // shuffled_indices
+    160; // deal_cards
 
-  // Community cards are at indices 10-14 in card_pool
-  const COMMUNITY_START_INDEX = 10;
   const handles: string[] = [];
 
   for (let i = 0; i < revealCount; i++) {
-    const cardIndex = COMMUNITY_START_INDEX + i;
-    const cardOffset = CARD_POOL_OFFSET + cardIndex * 16;
+    const cardOffset = COMMUNITY_CARDS_OFFSET + i * 16;
     const cardBytes = data.slice(cardOffset, cardOffset + 16);
     handles.push(euint128ToHandle(cardBytes));
   }
@@ -228,8 +251,12 @@ export async function decryptCommunityCards(
       signMessage: wallet.signMessage,
     });
 
-    // Decode the plaintext values
-    const cards = result.plaintexts.map(decodeCardValue);
+    // Decode the plaintext values (mod 52 to get actual card index)
+    const cards = result.plaintexts.map((plaintext) => {
+      const value = BigInt(plaintext);
+      const cardIndex = Number(value % 52n);
+      return decodeCardValue(cardIndex.toString());
+    });
 
     console.log("Decrypted community cards:", cards);
     return cards;
@@ -237,6 +264,96 @@ export async function decryptCommunityCards(
     if (error instanceof AttestedDecryptError) {
       console.error("Inco decryption failed:", error.message);
       throw new Error(`Failed to decrypt community cards: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Decrypt player's hole cards from PokerGame account (NEW ARCHITECTURE)
+ *
+ * The new architecture stores hole cards in game.deal_cards[10]
+ * The shuffled_indices array determines which player gets which pair
+ *
+ * @param connection - Solana connection
+ * @param gameAddress - The PokerGame PDA address
+ * @param seatIndex - Player's seat index (0-4)
+ * @param wallet - Connected wallet (for signing decryption request)
+ * @returns Array of 2 decrypted cards
+ */
+export async function decryptHoleCardsFromGame(
+  connection: any,
+  gameAddress: PublicKey,
+  seatIndex: number,
+  wallet: WalletContextState,
+): Promise<DecryptedCard[]> {
+  if (!wallet.publicKey || !wallet.signMessage) {
+    throw new Error("Wallet not connected or does not support message signing");
+  }
+
+  if (seatIndex < 0 || seatIndex > 4) {
+    throw new Error("seatIndex must be between 0 and 4");
+  }
+
+  // Fetch PokerGame account
+  const accountInfo = await connection.getAccountInfo(gameAddress);
+  if (!accountInfo) {
+    throw new Error("PokerGame account not found");
+  }
+
+  const data = accountInfo.data;
+
+  // Read shuffled_indices to find which pair belongs to this seat
+  const SHUFFLED_INDICES_OFFSET =
+    8 + 32 + 8 + 1 + 8 + 8 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 8 + 16;
+  const shuffledIndices = Array.from(
+    data.slice(SHUFFLED_INDICES_OFFSET, SHUFFLED_INDICES_OFFSET + 5),
+  );
+
+  // Find which original pair index ends up at this seat
+  const pairIndex = shuffledIndices[seatIndex] as number;
+
+  // Calculate offset to deal_cards
+  const DEAL_CARDS_OFFSET = SHUFFLED_INDICES_OFFSET + 5;
+
+  // Get the two cards for this player
+  const card1Offset = DEAL_CARDS_OFFSET + pairIndex * 2 * 16;
+  const card2Offset = DEAL_CARDS_OFFSET + (pairIndex * 2 + 1) * 16;
+
+  const card1Bytes = data.slice(card1Offset, card1Offset + 16);
+  const card2Bytes = data.slice(card2Offset, card2Offset + 16);
+
+  // Convert to handles
+  const handle1 = euint128ToHandle(card1Bytes);
+  const handle2 = euint128ToHandle(card2Bytes);
+
+  console.log("Decrypting hole cards:", {
+    seatIndex,
+    pairIndex,
+    handle1,
+    handle2,
+  });
+
+  try {
+    // Use Inco's Attested Decrypt
+    const result = await decrypt([handle1, handle2], {
+      address: wallet.publicKey,
+      signMessage: wallet.signMessage,
+    });
+
+    // Decode the plaintext values (mod 52 to get actual card index)
+    const cards = result.plaintexts.map((plaintext) => {
+      const value = BigInt(plaintext);
+      const cardIndex = Number(value % 52n);
+      return decodeCardValue(cardIndex.toString());
+    });
+
+    console.log("Decrypted cards:", cards);
+    return cards;
+  } catch (error) {
+    if (error instanceof AttestedDecryptError) {
+      console.error("Inco decryption failed:", error.message);
+      throw new Error(`Failed to decrypt cards: ${error.message}`);
     }
     throw error;
   }

@@ -150,6 +150,8 @@ export function Game() {
           currentPlayerId={playerId!}
           currentTurnPlayerId={currentTurnPlayerId}
           gameAddress={gameState.gameAddress}
+          tableAddress={gameState.tablePDA}
+          gameId={gameState.tableId ? BigInt(gameState.tableId) : 0n}
         />
 
         {/* Player's cards (larger view) */}
