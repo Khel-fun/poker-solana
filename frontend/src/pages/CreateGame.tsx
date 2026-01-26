@@ -10,7 +10,13 @@ import { WalletButton } from "../components/WalletButton";
 export function CreateGame() {
   const navigate = useNavigate();
   const { playerId, playerName, connect, joinGame } = useGameStore();
-  const { createTable, isConnected } = useSolanaPoker();
+  const {
+    createTable,
+    joinTable,
+    isConnected,
+    walletAddress,
+    getPlayerSeatPDA,
+  } = useSolanaPoker();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,9 +62,25 @@ export function CreateGame() {
         smallBlind,
       );
 
-      console.log("Table created on blockchain:", { signature, tablePDA });
+      console.log("✅ Table created on blockchain:", { signature, tablePDA });
 
-      // Also create game on backend for coordination
+      // Wait for blockchain state to propagate (same as test does)
+      console.log("⏳ Waiting for blockchain state to propagate...");
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay
+
+      // Host joins their own table
+      console.log("🎲 Host joining table...");
+      const joinSignature = await joinTable(tablePDA, buyInMin);
+      console.log("✅ Host joined table:", joinSignature);
+
+      // Derive and store player seat PDA for host
+      const { PublicKey } = await import("@solana/web3.js");
+      const tablePubkey = new PublicKey(tablePDA);
+      const playerPubkey = new PublicKey(walletAddress!);
+      const playerSeatPDA = await getPlayerSeatPDA(tablePubkey, playerPubkey);
+      console.log("📍 Host Player Seat PDA:", playerSeatPDA.toBase58());
+
+      // Create game on backend for coordination
       const result = await api.createGame({
         hostId: playerId,
         hostName: playerName,
@@ -67,6 +89,12 @@ export function CreateGame() {
         tablePDA,
         tableId: tableId.toString(),
       });
+
+      // Store playerSeatAddress in localStorage for this game
+      localStorage.setItem(
+        `playerSeat_${result.gameId}_${playerId}`,
+        playerSeatPDA.toBase58(),
+      );
 
       connect();
 

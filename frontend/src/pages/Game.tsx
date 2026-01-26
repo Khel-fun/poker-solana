@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useGameStore } from '../stores/gameStore';
-import { PokerTable } from '../components/game/PokerTable';
-import { ActionPanel } from '../components/game/ActionPanel';
-import { PlayingCard } from '../components/game/PlayingCard';
-import { Loader2, Trophy } from 'lucide-react';
+import { useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useGameStore } from "../stores/gameStore";
+import { PokerTable } from "../components/game/PokerTable";
+import { ActionPanel } from "../components/game/ActionPanel";
+import { PlayingCard } from "../components/game/PlayingCard";
+import { Loader2, Trophy } from "lucide-react";
 
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -26,7 +26,7 @@ export function Game() {
 
   useEffect(() => {
     if (!playerId) {
-      navigate('/');
+      navigate("/");
       return;
     }
 
@@ -42,12 +42,12 @@ export function Game() {
   }, [isConnected, gameId, gameState, joinGame]);
 
   useEffect(() => {
-    if (gameState?.status === 'waiting') {
+    if (gameState?.status === "waiting") {
       navigate(`/lobby/${gameId}`);
     }
   }, [gameState?.status, gameId, navigate]);
 
-  if (!gameState || gameState.status === 'waiting') {
+  if (!gameState || gameState.status === "waiting") {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
@@ -65,17 +65,23 @@ export function Game() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-xl p-8 max-w-lg w-full mx-4 text-center">
             <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-white mb-6">Hand Complete!</h2>
-            
+            <h2 className="text-2xl font-bold text-white mb-6">
+              Hand Complete!
+            </h2>
+
             <div className="space-y-4 mb-6">
               {winners.map((winner, i) => {
-                const player = gameState.players.find((p) => p.id === winner.playerId);
-                const showdownInfo = showdown?.find((s) => s.playerId === winner.playerId);
-                
+                const player = gameState.players.find(
+                  (p) => p.id === winner.playerId,
+                );
+                const showdownInfo = showdown?.find(
+                  (s) => s.playerId === winner.playerId,
+                );
+
                 return (
                   <div key={i} className="bg-gray-700 rounded-lg p-4">
                     <p className="text-white font-semibold text-lg">
-                      {player?.name || 'Unknown'} wins ${winner.amount}
+                      {player?.name || "Unknown"} wins ${winner.amount}
                     </p>
                     <p className="text-yellow-400 text-sm">{winner.handRank}</p>
                     {showdownInfo && showdownInfo.cards.length > 0 && (
@@ -101,12 +107,12 @@ export function Game() {
       )}
 
       {/* Game finished */}
-      {gameState.status === 'finished' && (
+      {gameState.status === "finished" && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-xl p-8 max-w-lg w-full mx-4 text-center">
             <Trophy className="w-16 h-16 text-yellow-400 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-white mb-6">Game Over!</h2>
-            
+
             <div className="space-y-2 mb-6">
               {gameState.players
                 .sort((a, b) => b.chips - a.chips)
@@ -114,7 +120,7 @@ export function Game() {
                   <div
                     key={player.id}
                     className={`flex items-center justify-between p-3 rounded-lg ${
-                      i === 0 ? 'bg-yellow-900/50' : 'bg-gray-700'
+                      i === 0 ? "bg-yellow-900/50" : "bg-gray-700"
                     }`}
                   >
                     <span className="text-white">
@@ -128,7 +134,7 @@ export function Game() {
             </div>
 
             <button
-              onClick={() => navigate('/')}
+              onClick={() => navigate("/")}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
             >
               Back to Home
@@ -143,6 +149,9 @@ export function Game() {
           gameState={gameState}
           currentPlayerId={playerId!}
           currentTurnPlayerId={currentTurnPlayerId}
+          gameAddress={gameState.gameAddress}
+          tableAddress={gameState.tablePDA}
+          gameId={gameState.tableId ? BigInt(gameState.tableId) : 0n}
         />
 
         {/* Player's cards (larger view) */}
@@ -174,10 +183,13 @@ export function Game() {
           <div className="text-center mt-6 text-gray-400">
             {currentTurnPlayerId ? (
               <p>
-                Waiting for{' '}
+                Waiting for{" "}
                 <span className="text-white font-semibold">
-                  {gameState.players.find((p) => p.id === currentTurnPlayerId)?.name}
-                </span>{' '}
+                  {
+                    gameState.players.find((p) => p.id === currentTurnPlayerId)
+                      ?.name
+                  }
+                </span>{" "}
                 to act...
               </p>
             ) : (

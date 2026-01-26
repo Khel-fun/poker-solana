@@ -33,6 +33,10 @@ export interface Player {
   isAllIn: boolean;
   isConnected: boolean;
   seatIndex: number;
+
+  // Solana blockchain fields
+  walletAddress?: string; // Player's Solana wallet public key (base58)
+  playerSeatAddress?: string; // PlayerSeat PDA for this player (base58)
 }
 
 // Game Settings
@@ -73,8 +77,9 @@ export interface GameState {
   players: Player[];
 
   // Blockchain fields
-  tablePDA?: string;
-  tableId?: string;
+  tablePDA?: string; // Legacy field, keep for compatibility
+  tableId?: string; // Legacy field, keep for compatibility
+  gameAddress?: string; // PokerGame PDA for this game (base58)
 
   // Active game state
   deck: Card[];
@@ -117,7 +122,12 @@ export interface GameListItem {
 export interface ClientToServerEvents {
   join_game: (data: {
     gameId: string;
-    player: { id: string; name: string };
+    player: {
+      id: string;
+      name: string;
+      walletAddress?: string;
+      playerSeatAddress?: string;
+    };
   }) => void;
   leave_game: (data: { gameId: string }) => void;
   start_game: (data: { gameId: string }) => void;
@@ -178,8 +188,11 @@ export interface CreateGameRequest {
   hostName: string;
   name: string;
   settings: GameSettings;
+  hostWalletAddress?: string;
+  hostPlayerSeatAddress?: string;
   tablePDA?: string;
   tableId?: string;
+  gameAddress?: string;
 }
 
 export interface JoinGameRequest {

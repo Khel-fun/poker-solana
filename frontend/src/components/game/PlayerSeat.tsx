@@ -1,6 +1,7 @@
-import type { Player } from '../../../../shared/types';
-import { PlayingCard } from './PlayingCard';
-import clsx from 'clsx';
+import type { Player } from "../../../../shared/types";
+import { PlayingCard } from "./PlayingCard";
+import { useCardDecryption } from "../../hooks/useCardDecryption";
+import clsx from "clsx";
 
 interface PlayerSeatProps {
   player: Player;
@@ -10,6 +11,9 @@ interface PlayerSeatProps {
   isSmallBlind: boolean;
   isBigBlind: boolean;
   showCards: boolean;
+  playerSeatAddress?: string; // Solana PDA for this player's seat
+  tableAddress?: string; // Solana PDA for the poker table
+  gameId?: bigint; // Game ID for revealHand calls
 }
 
 export function PlayerSeat({
@@ -20,26 +24,56 @@ export function PlayerSeat({
   isSmallBlind,
   isBigBlind,
   showCards,
+  playerSeatAddress,
+  tableAddress,
+  gameId,
 }: PlayerSeatProps) {
+  const { myCards, decryptMyCards, isDecrypting, error } = useCardDecryption();
+
+  // Try to get playerSeatAddress from localStorage if not provided
+  // This is a workaround until backend properly tracks this
+  const effectivePlayerSeatAddress =
+    playerSeatAddress ||
+    (isCurrentPlayer
+      ? localStorage.getItem(
+          `playerSeat_${window.location.pathname.split("/").pop()}_${player.id}`,
+        )
+      : null);
+
+  // Use decrypted cards if available and current player, otherwise use player.cards
+  const displayCards =
+    isCurrentPlayer && myCards.length > 0 ? myCards : player.cards;
+
+  const handleRevealCards = async () => {
+    if (!effectivePlayerSeatAddress || !tableAddress || !gameId) {
+      console.error("Missing required addresses or game ID", {
+        playerSeatAddress: effectivePlayerSeatAddress,
+        tableAddress,
+        gameId,
+      });
+      return;
+    }
+    await decryptMyCards(effectivePlayerSeatAddress, tableAddress, gameId);
+  };
   return (
     <div
       className={clsx(
-        'flex flex-col items-center p-3 rounded-xl transition-all',
-        isCurrentTurn && 'ring-2 ring-yellow-400 bg-yellow-900/20',
-        player.folded && 'opacity-50'
+        "flex flex-col items-center p-3 rounded-xl transition-all",
+        isCurrentTurn && "ring-2 ring-yellow-400 bg-yellow-900/20",
+        player.folded && "opacity-50",
       )}
     >
       {/* Avatar */}
       <div className="relative mb-2">
         <div
           className={clsx(
-            'w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg',
-            isCurrentPlayer ? 'bg-blue-600' : 'bg-gray-600'
+            "w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg",
+            isCurrentPlayer ? "bg-blue-600" : "bg-gray-600",
           )}
         >
           {player.name.charAt(0).toUpperCase()}
         </div>
-        
+
         {/* Position indicators */}
         <div className="absolute -top-1 -right-1 flex gap-0.5">
           {isDealer && (
@@ -71,21 +105,48 @@ export function PlayerSeat({
       </p>
 
       {/* Cards */}
-      <div className="flex gap-1 mt-2">
-        {player.cards.length > 0 ? (
-          player.cards.map((card, i) => (
-            <PlayingCard
-              key={i}
-              card={showCards || isCurrentPlayer ? card : undefined}
-              hidden={!showCards && !isCurrentPlayer}
-              size="sm"
-            />
-          ))
-        ) : (
-          <>
-            <PlayingCard hidden size="sm" />
-            <PlayingCard hidden size="sm" />
-          </>
+      <div className="flex flex-col items-center gap-2 mt-2">
+        <div className="flex gap-1">
+          {displayCards.length > 0 ? (
+            displayCards.map((card, i) => (
+              <PlayingCard
+                key={i}
+                card={showCards || isCurrentPlayer ? card : undefined}
+                hidden={!showCards && !isCurrentPlayer}
+                size="sm"
+              />
+            ))
+          ) : (
+            <>
+              <PlayingCard hidden size="sm" />
+              <PlayingCard hidden size="sm" />
+            </>
+          )}
+        </div>
+
+        {/* Reveal button - only show for current player if cards haven't been decrypted yet */}
+        {isCurrentPlayer &&
+          effectivePlayerSeatAddress &&
+          tableAddress &&
+          gameId &&
+          myCards.length === 0 && (
+            <button
+              onClick={handleRevealCards}
+              disabled={isDecrypting}
+              className={clsx(
+                "px-3 py-1 text-xs font-semibold rounded transition-all",
+                isDecrypting
+                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 text-white",
+              )}
+            >
+              {isDecrypting ? "Decrypting..." : "Reveal Cards"}
+            </button>
+          )}
+
+        {/* Error message */}
+        {isCurrentPlayer && error && (
+          <p className="text-red-400 text-xs mt-1">{error}</p>
         )}
       </div>
 
