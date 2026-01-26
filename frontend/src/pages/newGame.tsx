@@ -2,7 +2,7 @@ export default function NewGame(){
     return(
     <div className="min-h-screen bg-[url('/background.jpg')] bg-cover bg-center pt-16">
 
-        <div className="relative w-full h-[calc(100vh-64px)] flex items-center justify-center overflow-hidden perspective-[1000px]">
+        <div className="relative w-full h-[calc(100vh))] flex items-center justify-center overflow-hidden perspective-[1000px]">
 
         {/* Table & Dealer Wrapper - Defines the scale for both */}
         <div className="relative w-[95vw] md:w-[85vw] max-w-[1000px] aspect-[1.8/1]">

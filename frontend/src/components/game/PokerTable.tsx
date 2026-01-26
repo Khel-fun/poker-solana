@@ -14,10 +14,10 @@ interface PokerTableProps {
 
 const seatPositions = [
   "bottom-8 left-1/2 -translate-x-1/2",  // Position 0: Center bottom (current player)
-  "bottom-16 left-24",                      // Position 1: Bottom left
-  "top-16 left-24",                         // Position 2: Top left
-  "top-16 right-24",                        // Position 3: Top right
-  "bottom-16 right-24",                     // Position 4: Bottom right
+  "bottom-24 left-24",                      // Position 1: Bottom left
+  "top-24 left-24",                         // Position 2: Top left
+  "top-24 right-24",                        // Position 3: Top right
+  "bottom-24 right-24",                     // Position 4: Bottom right
 ];
 
 export function PokerTable({
@@ -40,7 +40,7 @@ export function PokerTable({
 
   return (
     <div className="min-h-screen bg-[url('/background.jpg')] bg-cover bg-center">
-      <div className="relative w-full h-[calc(100vh-64px)] flex items-center justify-center overflow-hidden perspective-[1000px] pt-28">
+      <div className="relative w-full h-[calc(100vh)] flex items-center justify-center overflow-hidden perspective-[1000px] pt-28">
         {/* Table & Dealer Wrapper - Defines the scale for both */}
         <div className="relative w-[95vw] md:w-[85vw] max-w-[1400px] aspect-[1.8/1]">
           {/* Dealer - Positioned relative to the wrapper (table size) */}

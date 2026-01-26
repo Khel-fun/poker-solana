@@ -32,7 +32,7 @@ export function PlayerSeat({
   // Animate timer circle with GSAP
   useEffect(() => {
     if (isCurrentTurn && progressRef.current) {
-      const circumference = 2 * Math.PI * 30; // r=30
+      const circumference = 2 * Math.PI * 45; // r=45
 
       // Start with full circle (offset 0) and animate to empty (offset = circumference)
       gsap.set(progressRef.current, { strokeDashoffset: 0 });
@@ -45,7 +45,7 @@ export function PlayerSeat({
     } else if (progressRef.current) {
       // Kill animation and reset when not current turn
       gsap.killTweensOf(progressRef.current);
-      gsap.set(progressRef.current, { strokeDashoffset: 2 * Math.PI * 30 });
+      gsap.set(progressRef.current, { strokeDashoffset: 2 * Math.PI * 45 });
     }
   }, [isCurrentTurn, turnTime]);
 
@@ -60,15 +60,15 @@ export function PlayerSeat({
       <div className="relative">
         {/* Timer Circle Overlay */}
         {isCurrentTurn && (
-          <svg className="absolute inset-0 w-16 h-16 -rotate-90 z-20 pointer-events-none">
+          <svg className="absolute inset-0 w-24 h-24 -rotate-90 z-20 pointer-events-none">
             <circle
-              cx="32"
-              cy="32"
-              r="30"
+              cx="48"
+              cy="48"
+              r="45"
               fill="none"
               stroke="rgba(251, 191, 36, 0.4)"
               strokeWidth="4"
-              strokeDasharray={`${2 * Math.PI * 30}`}
+              strokeDasharray={`${2 * Math.PI * 45}`}
               strokeDashoffset="0"
               ref={progressRef}
               className="drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]"
@@ -78,7 +78,7 @@ export function PlayerSeat({
 
         <div
           className={clsx(
-            "w-16 h-16 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg relative z-10",
+            "w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg relative z-10",
             isCurrentPlayer
               ? "bg-gradient-to-br from-blue-500 to-blue-700"
               : "bg-gradient-to-br from-gray-600 to-gray-800",
@@ -112,7 +112,7 @@ export function PlayerSeat({
 
         {/* Current bet badge */}
         {player.bet > 0 && (
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-yellow-500 text-black rounded-full text-xs font-bold whitespace-nowrap shadow-md z-10">
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-yellow-500 text-black rounded-full text-sm font-bold whitespace-nowrap shadow-md z-10">
             ${player.bet}
           </div>
         )}

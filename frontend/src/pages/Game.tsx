@@ -4,6 +4,7 @@ import { useGameStore } from '../stores/gameStore';
 import { PokerTable } from '../components/game/PokerTable';
 import { PlayingCard } from '../components/game/PlayingCard';
 import { Loader2, Trophy } from 'lucide-react';
+import { Navbar } from '../components/layout/Navbar';
 
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -48,14 +49,19 @@ export function Game() {
 
   if (!gameState || gameState.status === 'waiting') {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
-      </div>
+      <>
+        <Navbar showBackButton backTo="/games" />
+        <div className="min-h-screen flex items-center justify-center pt-20">
+          <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
+    <>
+      <Navbar showBackButton backTo="/games" />
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
       {/* Winners modal */}
       {winners && winners.length > 0 && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
@@ -142,6 +148,7 @@ export function Game() {
         timeRemaining={timeRemaining}
         onAction={(action) => performAction(gameId!, action)}
       />
-    </div>
+      </div>
+    </>
   );
 }

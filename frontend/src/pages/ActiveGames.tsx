@@ -4,6 +4,7 @@ import { useGameStore } from '../stores/gameStore';
 import { api } from '../services/api';
 import { ArrowLeft, Users, RefreshCw, Loader2 } from 'lucide-react';
 import type { GameListItem } from '../../../shared/types';
+import { Navbar } from '../components/layout/Navbar';
 
 export function ActiveGames() {
   const navigate = useNavigate();
@@ -46,15 +47,17 @@ export function ActiveGames() {
   };
 
   return (
-    <div className="min-h-screen p-4">
-      <div className="max-w-2xl mx-auto">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back
-        </button>
+    <>
+      <Navbar />
+      <div className="min-h-screen p-4 pt-20">
+        <div className="max-w-2xl mx-auto">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 text-gray-400 hover:text-white mb-8 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back
+          </button>
 
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-white">Active Games</h1>
@@ -122,7 +125,8 @@ export function ActiveGames() {
             ))}
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

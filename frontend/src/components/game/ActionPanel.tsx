@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ActionType, PlayerAction } from '../../../../shared/types';
-import { X } from 'lucide-react';
+import { X, DollarSign } from 'lucide-react';
+import './ActionPanel.css';
 
 interface ActionPanelProps {
   validActions: ActionType[];
@@ -40,7 +41,7 @@ export function ActionPanel({
     <div className="flex flex-col items-end gap-3">
       {/* Raise slider popup */}
       {showRaiseSlider && validActions.includes('raise') && (
-        <div className="bg-gray-900/95 backdrop-blur-sm rounded-2xl p-4 shadow-2xl border border-gray-700 w-64">
+        <div className="bg-[#303332] backdrop-blur-sm rounded-2xl p-4 shadow-2xl border border-gray-700 w-64">
           <div className="flex justify-between items-center mb-3">
             <span className="text-white font-semibold">Raise Amount</span>
             <button onClick={() => setShowRaiseSlider(false)} className="text-gray-400 hover:text-white">
@@ -50,14 +51,29 @@ export function ActionPanel({
           <div className="text-center mb-3">
             <span className="text-yellow-400 font-bold text-2xl">${raiseAmount.toLocaleString()}</span>
           </div>
-          <input
-            type="range"
-            min={minRaise}
-            max={maxRaise}
-            value={raiseAmount}
-            onChange={(e) => setRaiseAmount(parseInt(e.target.value))}
-            className="w-full mb-2"
-          />
+          <div className="relative mb-2">
+            <input
+              type="range"
+              min={minRaise}
+              max={maxRaise}
+              value={raiseAmount}
+              onChange={(e) => setRaiseAmount(parseInt(e.target.value))}
+              className="w-full range-slider"
+              style={{
+                background: `linear-gradient(to right, rgb(234, 179, 8) 0%, rgb(234, 179, 8) ${((raiseAmount - minRaise) / (maxRaise - minRaise)) * 100}%, rgb(55, 65, 81) ${((raiseAmount - minRaise) / (maxRaise - minRaise)) * 100}%, rgb(55, 65, 81) 100%)`
+              }}
+            />
+            <div 
+              className="absolute top-1/2 -translate-y-1/2 pointer-events-none"
+              style={{
+                left: `calc(${((raiseAmount - minRaise) / (maxRaise - minRaise)) * 100}% - 12px)`
+              }}
+            >
+              <div className="w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg">
+                <DollarSign className="w-4 h-4 text-black" strokeWidth={3} />
+              </div>
+            </div>
+          </div>
           <div className="flex justify-between text-xs text-gray-400 mb-3">
             <span>${minRaise}</span>
             <span>${maxRaise}</span>
@@ -65,32 +81,32 @@ export function ActionPanel({
           <div className="grid grid-cols-4 gap-2 mb-3">
             <button
               onClick={() => setRaiseAmount(minRaise)}
-              className="py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg"
+              className="py-1.5 border border-[#facc14] text-white font-semibold text-xs rounded-lg"
             >
-              Min
+              MIN
             </button>
             <button
               onClick={() => setRaiseAmount(Math.floor(maxRaise / 2))}
-              className="py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg"
+              className="py-1.5 border border-[#facc14] text-white font-semiboldtext-xs rounded-lg"
             >
               1/2
             </button>
             <button
               onClick={() => setRaiseAmount(Math.floor(maxRaise * 0.75))}
-              className="py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg"
+              className="py-1.5 border border-[#facc14] text-white font-semibold text-xs rounded-lg"
             >
               3/4
             </button>
             <button
               onClick={() => setRaiseAmount(maxRaise)}
-              className="py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-lg"
+              className="py-1.5 border border-[#facc14] text-white font-semibold text-xs rounded-lg"
             >
-              Max
+              ALL IN
             </button>
           </div>
           <button
             onClick={handleRaise}
-            className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg"
+            className="w-full py-2.5 bg-[#004f38] hover:bg-green-700 text-white font-semibold rounded-lg"
           >
             Confirm Raise
           </button>
@@ -141,7 +157,7 @@ export function ActionPanel({
                   cy="40"
                   r="38"
                   fill="none"
-                  stroke="#1f2937"
+                  stroke="#3b4553"
                   strokeWidth="4"
                   strokeDasharray={`${2 * Math.PI * 38 * 0.75} ${2 * Math.PI * 38 * 0.25}`}
                   strokeDashoffset={`${2 * Math.PI * 38 * -0.125}`}
