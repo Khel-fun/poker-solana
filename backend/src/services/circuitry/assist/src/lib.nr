@@ -11,6 +11,7 @@ pub global CARDS_TO_DEAL: u32 = 15;
 pub global HASH_DOMAIN_SEPARATOR_SEED: Field = 1;
 pub global HASH_DOMAIN_SEPARATOR_DECK: Field = 2;
 pub global HASH_DOMAIN_SEPARATOR_CARD: Field = 3;
+
 /// Domain separator for Fisher-Yates RNG state transitions.
 pub global HASH_DOMAIN_SEPARATOR_RNG: Field = 4;
 pub global PADDING_NONCE: Field = 5;
@@ -205,14 +206,25 @@ pub fn calculate_commitment(
     commitments
 }
 
+/// Commitment of community cards
+///
+/// # Arguments
+/// * `cards` - The cards array.
+///
+/// # Returns
+/// The commitment for the community cards.
+pub fn calculate_community_commitment(cards: [Field; 5]) -> Field {
+    Poseidon2::hash([cards[0], cards[1], cards[2], cards[3], cards[4]], 5)
+}
+
 // =============================================================================
 // Test Module
 // =============================================================================
 
 mod tests {
     use super::{
-        calculate_commitment, CARDS_TO_DEAL, DECK_SIZE, derive_salt, fisher_yates_shuffle,
-        get_cards, hash_card_in_deck, merkle_a_pair, merkle_root,
+        calculate_commitment, calculate_community_commitment, CARDS_TO_DEAL, DECK_SIZE, derive_salt,
+        fisher_yates_shuffle, get_cards, hash_card_in_deck, merkle_a_pair, merkle_root,
     };
     use poseidon::poseidon2::Poseidon2;
 
@@ -668,5 +680,94 @@ mod tests {
                 );
             }
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Calculate Community Commitment Tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_calculate_community_commitment_is_deterministic() {
+        // Same inputs must produce the same commitment
+        let cards: [Field; 5] = [10, 20, 30, 40, 50];
+
+        let commitment1 = calculate_community_commitment(cards);
+        let commitment2 = calculate_community_commitment(cards);
+
+        assert(commitment1 == commitment2, "Community commitment must be deterministic");
+    }
+
+    #[test]
+    fn test_calculate_community_commitment_different_cards() {
+        // Different community cards should produce different commitments
+        let cards1: [Field; 5] = [1, 2, 3, 4, 5];
+        let cards2: [Field; 5] = [6, 7, 8, 9, 10];
+
+        let commitment1 = calculate_community_commitment(cards1);
+        let commitment2 = calculate_community_commitment(cards2);
+
+        assert(commitment1 != commitment2, "Different cards should produce different commitments");
+    }
+
+    #[test]
+    fn test_calculate_community_commitment_order_matters() {
+        // The order of cards affects the commitment (important for flop, turn, river)
+        let cards1: [Field; 5] = [1, 2, 3, 4, 5];
+        let cards2: [Field; 5] = [5, 4, 3, 2, 1]; // reversed order
+
+        let commitment1 = calculate_community_commitment(cards1);
+        let commitment2 = calculate_community_commitment(cards2);
+
+        assert(commitment1 != commitment2, "Card order should affect commitment");
+    }
+
+    #[test]
+    fn test_calculate_community_commitment_integration_with_dealing() {
+        // Full workflow: shuffle -> get cards -> extract community cards -> commit
+        let seed: Field = 0xc0ffee;
+        let deck = fisher_yates_shuffle(seed);
+        let dealt_cards = get_cards(deck);
+
+        // Community cards are the last 5 of the 15 dealt cards (indices 10-14)
+        let community_cards: [Field; 5] =
+            [dealt_cards[10], dealt_cards[11], dealt_cards[12], dealt_cards[13], dealt_cards[14]];
+
+        // Calculate commitment
+        let commitment1 = calculate_community_commitment(community_cards);
+
+        // Re-run the entire workflow for verification
+        let deck_verify = fisher_yates_shuffle(seed);
+        let dealt_verify = get_cards(deck_verify);
+        let community_verify: [Field; 5] = [
+            dealt_verify[10],
+            dealt_verify[11],
+            dealt_verify[12],
+            dealt_verify[13],
+            dealt_verify[14],
+        ];
+        let commitment2 = calculate_community_commitment(community_verify);
+
+        assert(commitment1 == commitment2, "Community commitment should be reproducible from seed");
+    }
+
+    #[test]
+    fn test_calculate_community_commitment_unique_for_different_deals() {
+        // Different shuffles should produce different community commitments
+        let deck1 = fisher_yates_shuffle(111);
+        let deck2 = fisher_yates_shuffle(222);
+
+        let cards1 = get_cards(deck1);
+        let cards2 = get_cards(deck2);
+
+        let community1: [Field; 5] = [cards1[10], cards1[11], cards1[12], cards1[13], cards1[14]];
+        let community2: [Field; 5] = [cards2[10], cards2[11], cards2[12], cards2[13], cards2[14]];
+
+        let commitment1 = calculate_community_commitment(community1);
+        let commitment2 = calculate_community_commitment(community2);
+
+        assert(
+            commitment1 != commitment2,
+            "Different shuffles should produce different community commitments",
+        );
     }
 }

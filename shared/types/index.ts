@@ -1,6 +1,19 @@
 // Card Types
-export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
-export type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A';
+export type Suit = "hearts" | "diamonds" | "clubs" | "spades";
+export type Rank =
+  | "2"
+  | "3"
+  | "4"
+  | "5"
+  | "6"
+  | "7"
+  | "8"
+  | "9"
+  | "10"
+  | "J"
+  | "Q"
+  | "K"
+  | "A";
 
 export interface Card {
   suit: Suit;
@@ -45,10 +58,26 @@ export interface Winner {
 }
 
 // Game Round
-export type GameRound = 'preflop' | 'flop' | 'turn' | 'river' | 'showdown';
+export type GameRound = "preflop" | "flop" | "turn" | "river" | "showdown";
 
 // Game Status
-export type GameStatus = 'waiting' | 'playing' | 'finished';
+export type GameStatus = "waiting" | "playing" | "finished";
+
+// Hand Verification Data (for ZK proof tracking)
+export interface roundVerificationData {
+  /** Unique identifier for this hand */
+  roundId: string;
+  /** Shuffle proof transaction signature */
+  shuffleSignature?: string;
+  /** Community cards proof transaction signature */
+  communitySignature?: string;
+  /** Reveal proof transaction signature */
+  revealSignature?: string;
+  /** Whether all proofs verified successfully */
+  allVerified: boolean;
+  /** List of failed circuit IDs */
+  failures: string[];
+}
 
 // Game State
 export interface GameState {
@@ -58,7 +87,7 @@ export interface GameState {
   status: GameStatus;
   settings: GameSettings;
   players: Player[];
-  
+
   // Active game state
   deck: Card[];
   communityCards: Card[];
@@ -68,18 +97,24 @@ export interface GameState {
   dealerIndex: number;
   smallBlindIndex: number;
   bigBlindIndex: number;
-  
+
   round: GameRound;
   currentBet: number;
   minRaise: number;
   lastRaiseAmount: number;
-  
+
   winners?: Winner[];
   createdAt: Date;
+
+  // ZK Proof Verification (optional, for provably fair games)
+  /** Current hand's unique identifier for proof tracking */
+  currentroundId?: string;
+  /** Verification data for the current hand */
+  verificationData?: roundVerificationData;
 }
 
 // Player Action Types
-export type ActionType = 'fold' | 'check' | 'call' | 'raise' | 'all-in';
+export type ActionType = "fold" | "check" | "call" | "raise" | "all-in";
 
 export interface PlayerAction {
   type: ActionType;
@@ -98,7 +133,10 @@ export interface GameListItem {
 
 // Client to Server Events
 export interface ClientToServerEvents {
-  join_game: (data: { gameId: string; player: { id: string; name: string } }) => void;
+  join_game: (data: {
+    gameId: string;
+    player: { id: string; name: string };
+  }) => void;
   leave_game: (data: { gameId: string }) => void;
   start_game: (data: { gameId: string }) => void;
   player_action: (data: { gameId: string; action: PlayerAction }) => void;
@@ -113,13 +151,37 @@ export interface ServerToClientEvents {
   player_left: (data: { playerId: string }) => void;
   game_started: (state: GameState) => void;
   new_round: (data: { round: GameRound; communityCards: Card[] }) => void;
-  player_turn: (data: { playerId: string; timeRemaining: number; validActions: ActionType[] }) => void;
-  player_acted: (data: { playerId: string; action: PlayerAction; playerChips: number; pot: number }) => void;
+  player_turn: (data: {
+    playerId: string;
+    timeRemaining: number;
+    validActions: ActionType[];
+  }) => void;
+  player_acted: (data: {
+    playerId: string;
+    action: PlayerAction;
+    playerChips: number;
+    pot: number;
+  }) => void;
   pot_updated: (data: { pot: number; sidePots: SidePot[] }) => void;
-  hand_complete: (data: { winners: Winner[]; showdown: { playerId: string; cards: Card[]; handRank: string }[] }) => void;
-  game_over: (data: { finalStandings: { playerId: string; name: string; chips: number; position: number }[] }) => void;
+  hand_complete: (data: {
+    winners: Winner[];
+    showdown: { playerId: string; cards: Card[]; handRank: string }[];
+  }) => void;
+  game_over: (data: {
+    finalStandings: {
+      playerId: string;
+      name: string;
+      chips: number;
+      position: number;
+    }[];
+  }) => void;
   error: (data: { message: string; code: string }) => void;
-  chat_received: (data: { playerId: string; playerName: string; message: string; timestamp: Date }) => void;
+  chat_received: (data: {
+    playerId: string;
+    playerName: string;
+    message: string;
+    timestamp: Date;
+  }) => void;
   timer_update: (data: { timeRemaining: number }) => void;
 }
 
@@ -143,13 +205,13 @@ export interface JoinGameRequest {
 
 // Error Codes
 export type ErrorCode =
-  | 'GAME_NOT_FOUND'
-  | 'GAME_FULL'
-  | 'GAME_STARTED'
-  | 'NOT_HOST'
-  | 'NOT_YOUR_TURN'
-  | 'INVALID_ACTION'
-  | 'INSUFFICIENT_CHIPS'
-  | 'PLAYER_NOT_FOUND'
-  | 'ALREADY_JOINED'
-  | 'MIN_PLAYERS_NOT_MET';
+  | "GAME_NOT_FOUND"
+  | "GAME_FULL"
+  | "GAME_STARTED"
+  | "NOT_HOST"
+  | "NOT_YOUR_TURN"
+  | "INVALID_ACTION"
+  | "INSUFFICIENT_CHIPS"
+  | "PLAYER_NOT_FOUND"
+  | "ALREADY_JOINED"
+  | "MIN_PLAYERS_NOT_MET";
