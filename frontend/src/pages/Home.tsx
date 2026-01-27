@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../stores/gameStore';
 import { Spade, Users, Plus } from 'lucide-react';
+import { Navbar } from '../components/layout/Navbar';
 
 export function Home() {
   const navigate = useNavigate();
@@ -40,7 +41,9 @@ export function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+    <>
+      <Navbar />
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 pt-20">
       <div className="text-center mb-12">
         <div className="flex items-center justify-center gap-3 mb-4">
           <Spade className="w-16 h-16 text-red-500" />
@@ -99,6 +102,7 @@ export function Home() {
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

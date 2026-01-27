@@ -4,6 +4,7 @@ import { CreateGame } from './pages/CreateGame';
 import { ActiveGames } from './pages/ActiveGames';
 import { Lobby } from './pages/Lobby';
 import { Game } from './pages/Game';
+import NewGame from './pages/newGame';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/games" element={<ActiveGames />} />
         <Route path="/lobby/:gameId" element={<Lobby />} />
         <Route path="/game/:gameId" element={<Game />} />
+        <Route path="/newGame" element={<NewGame />} />
       </Routes>
     </BrowserRouter>
   );
