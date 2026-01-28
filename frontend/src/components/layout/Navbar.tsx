@@ -19,16 +19,14 @@ export function Navbar({
         <div className="flex items-center justify-between h-20">
           {/* App Name */}
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-full bg-gradient-to-b from-yellow-400 to-yellow-700 shadow-lg shadow-yellow-500/20">
-              <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center">
-                <span className="text-yellow-500 font-bold text-lg">♠</span>
+              <div className=" w-28 h-6 flex items-center">
+                <img src="/logo.png"/>
               </div>
-            </div>
             <h1
               className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-yellow-500 to-yellow-700 tracking-wider font-display"
               style={{ textShadow: "0 2px 10px rgba(234, 179, 8, 0.2)" }}
             >
-              POKER SOLANA
+              POKER
             </h1>
           </div>
 
