@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "../stores/gameStore";
 import { ArrowLeft, Users, Play, Loader2, Crown } from "lucide-react";
 import { useSolanaPoker } from "../hooks/useSolanaPoker";
-import { WalletButton } from "../components/WalletButton";
 import { Navbar } from "../components/layout/Navbar";
 
 export function Lobby() {
@@ -181,7 +180,6 @@ export function Lobby() {
               Leave Lobby
             </span>
           </button>
-           <WalletButton />
 
           <div className="bg-[#0a0a0a]/80 backdrop-blur-xl rounded-3xl p-8 border border-yellow-500/20 shadow-[0_0_50px_rgba(0,0,0,0.6)] flex flex-col gap-8 relative overflow-hidden">
             <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-transparent via-yellow-500/50 to-transparent opacity-30"></div>
@@ -350,29 +348,47 @@ export function Lobby() {
           <div className="fixed bottom-10 right-10 z-50">
             {isHost ? (
               <button
+                onClick={handleStart}
                 disabled={!canStart || blockchainLoading || !isWalletConnected}
-                disabled={!canStart}
-                className="px-8 py-3 bg-gradient-to-r from-yellow-600 to-yellow-400 hover:from-yellow-500 hover:to-yellow-300 disabled:from-yellow-600 disabled:to-yellow-400 disabled:cursor-not-allowed text-black font-black text-sm tracking-widest rounded-full transition-all transform hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(234,179,8,0.4)] disabled:shadow-[0_0_30px_rgba(234,179,8,0.4)] flex items-center justify-center gap-2 uppercase"
+                className="px-8 py-3 bg-gradient-to-r from-yellow-600 to-yellow-400 hover:from-yellow-500 hover:to-yellow-300 disabled:from-yellow-600 disabled:to-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed text-black font-black text-sm tracking-widest rounded-full transition-all transform hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(234,179,8,0.4)] flex items-center justify-center gap-2 uppercase"
               >
                 {blockchainLoading ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Starting on blockchain...
-              </>
-            ) : (
-              <>
-                <Play className="w-5 h-5" />
-                {canStart ? "Start Game" : "Waiting for more players..."}
-              </>
-            )}
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Starting on blockchain...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-5 h-5" />
+                    {canStart ? "Start Game" : "Waiting for more players..."}
+                  </>
+                )}
               </button>
             ) : (
-              <div className="px-6 py-3 bg-black/80 backdrop-blur-md border border-yellow-500/40 rounded-full flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(234,179,8,0.2)]">
-                <Loader2 className="w-4 h-4 text-yellow-500 animate-spin" />
-                <span className="text-yellow-400 font-bold uppercase tracking-widest text-xs">
-                  Waiting for host...
-                </span>
-              </div>
+              <button
+                onClick={handleJoinBlockchainTable}
+                disabled={
+                  blockchainLoading || !isWalletConnected || hasJoinedTable
+                }
+                className="px-8 py-3 bg-gradient-to-r from-yellow-600 to-yellow-400 hover:from-yellow-500 hover:to-yellow-300 disabled:from-yellow-800 disabled:to-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed text-black font-black text-sm tracking-widest rounded-full transition-all transform hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(234,179,8,0.4)] flex items-center justify-center gap-2 uppercase"
+              >
+                {blockchainLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Joining table...
+                  </>
+                ) : hasJoinedTable ? (
+                  <>
+                    <Play className="w-5 h-5" />
+                    Waiting for host...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-5 h-5" />
+                    Join Table on Blockchain
+                  </>
+                )}
+              </button>
             )}
           </div>
         </div>
