@@ -1,6 +1,19 @@
 // Card Types
-export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
-export type Rank = '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A';
+export type Suit = "hearts" | "diamonds" | "clubs" | "spades";
+export type Rank =
+  | "2"
+  | "3"
+  | "4"
+  | "5"
+  | "6"
+  | "7"
+  | "8"
+  | "9"
+  | "10"
+  | "J"
+  | "Q"
+  | "K"
+  | "A";
 
 export interface Card {
   suit: Suit;
@@ -20,6 +33,10 @@ export interface Player {
   isAllIn: boolean;
   isConnected: boolean;
   seatIndex: number;
+
+  // Solana blockchain fields
+  walletAddress?: string; // Player's Solana wallet public key (base58)
+  playerSeatAddress?: string; // PlayerSeat PDA for this player (base58)
 }
 
 // Game Settings
@@ -45,10 +62,10 @@ export interface Winner {
 }
 
 // Game Round
-export type GameRound = 'preflop' | 'flop' | 'turn' | 'river' | 'showdown';
+export type GameRound = "preflop" | "flop" | "turn" | "river" | "showdown";
 
 // Game Status
-export type GameStatus = 'waiting' | 'playing' | 'finished';
+export type GameStatus = "waiting" | "playing" | "finished";
 
 // Game State
 export interface GameState {
@@ -58,7 +75,12 @@ export interface GameState {
   status: GameStatus;
   settings: GameSettings;
   players: Player[];
-  
+
+  // Blockchain fields
+  tablePDA?: string; // Legacy field, keep for compatibility
+  tableId?: string; // Legacy field, keep for compatibility
+  gameAddress?: string; // PokerGame PDA for this game (base58)
+
   // Active game state
   deck: Card[];
   communityCards: Card[];
@@ -68,18 +90,18 @@ export interface GameState {
   dealerIndex: number;
   smallBlindIndex: number;
   bigBlindIndex: number;
-  
+
   round: GameRound;
   currentBet: number;
   minRaise: number;
   lastRaiseAmount: number;
-  
+
   winners?: Winner[];
   createdAt: Date;
 }
 
 // Player Action Types
-export type ActionType = 'fold' | 'check' | 'call' | 'raise' | 'all-in';
+export type ActionType = "fold" | "check" | "call" | "raise" | "all-in";
 
 export interface PlayerAction {
   type: ActionType;
@@ -98,7 +120,15 @@ export interface GameListItem {
 
 // Client to Server Events
 export interface ClientToServerEvents {
-  join_game: (data: { gameId: string; player: { id: string; name: string } }) => void;
+  join_game: (data: {
+    gameId: string;
+    player: {
+      id: string;
+      name: string;
+      walletAddress?: string;
+      playerSeatAddress?: string;
+    };
+  }) => void;
   leave_game: (data: { gameId: string }) => void;
   start_game: (data: { gameId: string }) => void;
   player_action: (data: { gameId: string; action: PlayerAction }) => void;
@@ -113,13 +143,37 @@ export interface ServerToClientEvents {
   player_left: (data: { playerId: string }) => void;
   game_started: (state: GameState) => void;
   new_round: (data: { round: GameRound; communityCards: Card[] }) => void;
-  player_turn: (data: { playerId: string; timeRemaining: number; validActions: ActionType[] }) => void;
-  player_acted: (data: { playerId: string; action: PlayerAction; playerChips: number; pot: number }) => void;
+  player_turn: (data: {
+    playerId: string;
+    timeRemaining: number;
+    validActions: ActionType[];
+  }) => void;
+  player_acted: (data: {
+    playerId: string;
+    action: PlayerAction;
+    playerChips: number;
+    pot: number;
+  }) => void;
   pot_updated: (data: { pot: number; sidePots: SidePot[] }) => void;
-  hand_complete: (data: { winners: Winner[]; showdown: { playerId: string; cards: Card[]; handRank: string }[] }) => void;
-  game_over: (data: { finalStandings: { playerId: string; name: string; chips: number; position: number }[] }) => void;
+  hand_complete: (data: {
+    winners: Winner[];
+    showdown: { playerId: string; cards: Card[]; handRank: string }[];
+  }) => void;
+  game_over: (data: {
+    finalStandings: {
+      playerId: string;
+      name: string;
+      chips: number;
+      position: number;
+    }[];
+  }) => void;
   error: (data: { message: string; code: string }) => void;
-  chat_received: (data: { playerId: string; playerName: string; message: string; timestamp: Date }) => void;
+  chat_received: (data: {
+    playerId: string;
+    playerName: string;
+    message: string;
+    timestamp: Date;
+  }) => void;
   timer_update: (data: { timeRemaining: number }) => void;
 }
 
@@ -134,6 +188,11 @@ export interface CreateGameRequest {
   hostName: string;
   name: string;
   settings: GameSettings;
+  hostWalletAddress?: string;
+  hostPlayerSeatAddress?: string;
+  tablePDA?: string;
+  tableId?: string;
+  gameAddress?: string;
 }
 
 export interface JoinGameRequest {
@@ -143,13 +202,13 @@ export interface JoinGameRequest {
 
 // Error Codes
 export type ErrorCode =
-  | 'GAME_NOT_FOUND'
-  | 'GAME_FULL'
-  | 'GAME_STARTED'
-  | 'NOT_HOST'
-  | 'NOT_YOUR_TURN'
-  | 'INVALID_ACTION'
-  | 'INSUFFICIENT_CHIPS'
-  | 'PLAYER_NOT_FOUND'
-  | 'ALREADY_JOINED'
-  | 'MIN_PLAYERS_NOT_MET';
+  | "GAME_NOT_FOUND"
+  | "GAME_FULL"
+  | "GAME_STARTED"
+  | "NOT_HOST"
+  | "NOT_YOUR_TURN"
+  | "INVALID_ACTION"
+  | "INSUFFICIENT_CHIPS"
+  | "PLAYER_NOT_FOUND"
+  | "ALREADY_JOINED"
+  | "MIN_PLAYERS_NOT_MET";

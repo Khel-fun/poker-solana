@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
+import gsap from "gsap";
 import type { Player } from "../../../../shared/types";
 import { PlayingCard } from "./PlayingCard";
+import { useCardDecryption } from "../../hooks/useCardDecryption";
 import clsx from "clsx";
-import gsap from "gsap";
 
 interface PlayerSeatProps {
   player: Player;
@@ -12,6 +13,9 @@ interface PlayerSeatProps {
   isSmallBlind: boolean;
   isBigBlind: boolean;
   showCards: boolean;
+  playerSeatAddress?: string; // Solana PDA for this player's seat
+  tableAddress?: string; // Solana PDA for the poker table
+  gameId?: bigint; // Game ID for revealHand calls
   timeRemaining?: number;
   turnTime?: number;
 }
@@ -24,9 +28,13 @@ export function PlayerSeat({
   isSmallBlind,
   isBigBlind,
   showCards,
+  playerSeatAddress,
+  tableAddress,
+  gameId,
   timeRemaining = 30,
   turnTime = 30,
 }: PlayerSeatProps) {
+  const { myCards, decryptMyCards, isDecrypting, error } = useCardDecryption();
   const progressRef = useRef<SVGCircleElement>(null);
 
   // Animate timer circle with GSAP
@@ -49,6 +57,31 @@ export function PlayerSeat({
     }
   }, [isCurrentTurn, turnTime]);
 
+  // Try to get playerSeatAddress from localStorage if not provided
+  // This is a workaround until backend properly tracks this
+  const effectivePlayerSeatAddress =
+    playerSeatAddress ||
+    (isCurrentPlayer
+      ? localStorage.getItem(
+          `playerSeat_${window.location.pathname.split("/").pop()}_${player.id}`,
+        )
+      : null);
+
+  // Use decrypted cards if available and current player, otherwise use player.cards
+  const displayCards =
+    isCurrentPlayer && myCards.length > 0 ? myCards : player.cards;
+
+  const handleRevealCards = async () => {
+    if (!effectivePlayerSeatAddress || !tableAddress || !gameId) {
+      console.error("Missing required addresses or game ID", {
+        playerSeatAddress: effectivePlayerSeatAddress,
+        tableAddress,
+        gameId,
+      });
+      return;
+    }
+    await decryptMyCards(effectivePlayerSeatAddress, tableAddress, gameId);
+  };
   return (
     <div
       className={clsx(
@@ -111,8 +144,8 @@ export function PlayerSeat({
         )}
 
         <div className="flex mt-2 absolute bottom-0 z-20 left-1/2 -translate-x-1/2">
-          {player.cards.length > 0 ? (
-            player.cards.map((card, i) => {
+          {displayCards.length > 0 ? (
+            displayCards.map((card, i) => {
               const rotdeg = 20 * (-1) ** (i + 1);
               return (
                 <PlayingCard
@@ -127,7 +160,7 @@ export function PlayerSeat({
           ) : (
             <>
               {/* <PlayingCard hidden size="sm" />
-            <PlayingCard hidden size="sm" /> */}
+              <PlayingCard hidden size="sm" /> */}
             </>
           )}
         </div>
@@ -148,18 +181,46 @@ export function PlayerSeat({
           ${player.chips.toLocaleString()}
         </p>
 
-        {/* Status indicators */}
-        {player.folded && (
-          <div className="mt-1 px-2 py-0.5 bg-red-600 rounded text-white text-xs font-bold">
-            FOLD
-          </div>
-        )}
-        {player.isAllIn && (
-          <div className="mt-1 px-2 py-0.5 bg-yellow-500 rounded text-black text-xs font-bold">
-            ALL IN
-          </div>
+        {/* Reveal button - only show for current player if cards haven't been decrypted yet */}
+        {isCurrentPlayer &&
+          effectivePlayerSeatAddress &&
+          tableAddress &&
+          gameId &&
+          myCards.length === 0 && (
+            <button
+              onClick={handleRevealCards}
+              disabled={isDecrypting}
+              className={clsx(
+                "px-3 py-1 text-xs font-semibold rounded transition-all",
+                isDecrypting
+                  ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 text-white",
+              )}
+            >
+              {isDecrypting ? "Decrypting..." : "Reveal Cards"}
+            </button>
+          )}
+
+        {/* Error message */}
+        {isCurrentPlayer && error && (
+          <p className="text-red-400 text-xs mt-1">{error}</p>
         )}
       </div>
+
+      {/* Current bet */}
+      {player.bet > 0 && (
+        <div className="mt-2 px-2 py-1 bg-gray-700 rounded text-yellow-300 text-xs">
+          Bet: ${player.bet}
+        </div>
+      )}
+
+      {/* Status */}
+      {player.folded && (
+        <div className="mt-1 text-red-400 text-xs font-semibold">FOLDED</div>
+      )}
+      {player.isAllIn && (
+        <div className="mt-1 text-yellow-400 text-xs font-semibold">ALL IN</div>
+      )}
     </div>
   );
 }

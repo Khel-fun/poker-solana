@@ -1,33 +1,53 @@
-import type { GameState, PlayerAction, ActionType } from "../../../../shared/types";
+import type { GameState } from "../../../../shared/types";
+import type { PlayerAction, ActionType } from "../../../../shared/types";
 import { PlayerSeat } from "./PlayerSeat";
 import { PlayingCard } from "./PlayingCard";
 import { ActionPanel } from "./ActionPanel";
+import { useCardDecryption } from "../../hooks/useCardDecryption";
+import clsx from "clsx";
 
 interface PokerTableProps {
   gameState: GameState;
   currentPlayerId: string;
   currentTurnPlayerId: string | null;
+  gameAddress?: string; // Solana PDA for the poker game
+  tableAddress?: string; // Solana PDA for the poker table
+  gameId?: bigint; // Game ID for revealHand calls
   validActions: ActionType[];
   timeRemaining: number;
   onAction: (action: PlayerAction) => void;
 }
 
 const seatPositions = [
-  "bottom-2 left-1/2 -translate-x-1/2",  // Position 0: Center bottom (current player)
-  "bottom-24 left-24",                      // Position 1: Bottom left
-  "top-24 left-24",                         // Position 2: Top left
-  "top-24 right-24",                        // Position 3: Top right
-  "bottom-24 right-24",                     // Position 4: Bottom right
+  "bottom-2 left-1/2 -translate-x-1/2", // Position 0: Center bottom (current player)
+  "bottom-24 left-24", // Position 1: Bottom left
+  "top-24 left-24", // Position 2: Top left
+  "top-24 right-24", // Position 3: Top right
+  "bottom-24 right-24", // Position 4: Bottom right
 ];
+
+// Map game round to stage number for Inco decryption
+const roundToStage: Record<string, number> = {
+  "pre-flop": 1,
+  flop: 2,
+  turn: 3,
+  river: 4,
+  showdown: 5,
+};
 
 export function PokerTable({
   gameState,
   currentPlayerId,
   currentTurnPlayerId,
+  gameAddress,
+  tableAddress,
+  gameId,
   validActions,
   timeRemaining,
   onAction,
 }: PokerTableProps) {
+  const { communityCards, decryptCommunity, isDecrypting, error } =
+    useCardDecryption();
   const sortedPlayers = [...gameState.players].sort((a, b) => {
     if (a.id === currentPlayerId) return -1;
     if (b.id === currentPlayerId) return 1;
@@ -35,8 +55,28 @@ export function PokerTable({
   });
 
   const isShowdown = gameState.round === "showdown";
-  const currentPlayer = gameState.players.find(p => p.id === currentPlayerId);
+  const currentStage = roundToStage[gameState.round] || 0;
+  const currentPlayer = gameState.players.find((p) => p.id === currentPlayerId);
   const isMyTurn = currentTurnPlayerId === currentPlayerId;
+
+  // Use decrypted community cards if available, otherwise use gameState.communityCards
+  const displayCommunityCards =
+    communityCards.length > 0 ? communityCards : gameState.communityCards;
+
+  // Show reveal button if:
+  // - We have a game address
+  // - We're past pre-flop (stage >= 2)
+  // - We haven't decrypted yet (communityCards is empty)
+  const shouldShowRevealButton =
+    gameAddress && currentStage >= 2 && communityCards.length === 0;
+
+  const handleRevealCommunity = async () => {
+    if (!gameAddress) {
+      console.error("No game address provided");
+      return;
+    }
+    await decryptCommunity(gameAddress, currentStage);
+  };
 
   return (
     <div className="min-h-screen bg-[url('/background.jpg')] bg-cover bg-center">
@@ -68,11 +108,11 @@ export function PokerTable({
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               {/* Community cards */}
               <div className="flex gap-2 mb-4">
-                {gameState.communityCards.map((card, i) => (
+                {displayCommunityCards.map((card, i) => (
                   <PlayingCard key={i} card={card} size="lg" />
                 ))}
                 {Array.from({
-                  length: 5 - gameState.communityCards.length,
+                  length: 5 - displayCommunityCards.length,
                 }).map((_, i) => (
                   <div
                     key={`empty-${i}`}
@@ -80,6 +120,25 @@ export function PokerTable({
                   />
                 ))}
               </div>
+
+              {/* Reveal community cards button */}
+              {shouldShowRevealButton && (
+                <button
+                  onClick={handleRevealCommunity}
+                  disabled={isDecrypting}
+                  className={clsx(
+                    "mb-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all shadow-lg",
+                    isDecrypting
+                      ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                      : "bg-purple-600 hover:bg-purple-700 text-white",
+                  )}
+                >
+                  {isDecrypting ? "Decrypting..." : "Reveal Community Cards"}
+                </button>
+              )}
+
+              {/* Error message */}
+              {error && <p className="text-red-400 text-xs mb-2">{error}</p>}
 
               {/* Pot */}
               <div className="bg-black/30 px-6 py-2 rounded-full">
@@ -93,7 +152,6 @@ export function PokerTable({
                 {gameState.round}
               </div>
             </div>
-
             {/* Player seats */}
             {sortedPlayers.map((player, index) => (
               <div
@@ -108,12 +166,16 @@ export function PokerTable({
                     gameState.players[gameState.dealerIndex]?.id === player.id
                   }
                   isSmallBlind={
-                    gameState.players[gameState.smallBlindIndex]?.id === player.id
+                    gameState.players[gameState.smallBlindIndex]?.id ===
+                    player.id
                   }
                   isBigBlind={
                     gameState.players[gameState.bigBlindIndex]?.id === player.id
                   }
                   showCards={isShowdown}
+                  playerSeatAddress={player.playerSeatAddress}
+                  tableAddress={tableAddress}
+                  gameId={gameId}
                   timeRemaining={timeRemaining}
                   turnTime={gameState.settings.turnTimeSeconds}
                 />
@@ -121,7 +183,6 @@ export function PokerTable({
             ))}
           </div>
         </div>
-
         {/* Action panel - positioned at bottom right corner */}
         {isMyTurn && currentPlayer && !currentPlayer.folded && (
           <div className="absolute bottom-6 right-6 z-50">
@@ -142,13 +203,18 @@ export function PokerTable({
           <div className="absolute bottom-6 right-6 text-gray-400 z-50">
             {currentTurnPlayerId ? (
               <p className="bg-black/70 px-4 py-2 rounded-lg backdrop-blur-sm text-sm">
-                Waiting for{' '}
+                Waiting for{" "}
                 <span className="text-white font-semibold">
-                  {gameState.players.find((p) => p.id === currentTurnPlayerId)?.name}
+                  {
+                    gameState.players.find((p) => p.id === currentTurnPlayerId)
+                      ?.name
+                  }
                 </span>
               </p>
             ) : (
-              <p className="bg-black/70 px-4 py-2 rounded-lg backdrop-blur-sm text-sm">Waiting...</p>
+              <p className="bg-black/70 px-4 py-2 rounded-lg backdrop-blur-sm text-sm">
+                Waiting...
+              </p>
             )}
           </div>
         )}
