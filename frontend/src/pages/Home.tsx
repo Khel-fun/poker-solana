@@ -1,19 +1,20 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useGameStore } from '../stores/gameStore';
-import { Spade, Users, Plus } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useGameStore } from "../stores/gameStore";
+import { Spade, Users, Plus } from "lucide-react";
+import { WalletButton } from "../components/WalletButton";
 import { Navbar } from '../components/layout/Navbar';
 
 export function Home() {
   const navigate = useNavigate();
   const { playerId, playerName, setPlayerInfo } = useGameStore();
-  const [name, setName] = useState(playerName || '');
+  const [name, setName] = useState(playerName || "");
   const [showNameInput, setShowNameInput] = useState(!playerName);
 
   useEffect(() => {
     if (!playerId) {
       const id = crypto.randomUUID();
-      setPlayerInfo(id, '');
+      setPlayerInfo(id, "");
     }
   }, [playerId, setPlayerInfo]);
 
@@ -29,7 +30,7 @@ export function Home() {
       setShowNameInput(true);
       return;
     }
-    navigate('/create');
+    navigate("/create");
   };
 
   const handleJoinGame = () => {
@@ -37,13 +38,17 @@ export function Home() {
       setShowNameInput(true);
       return;
     }
-    navigate('/games');
+    navigate("/games");
   };
 
   return (
     <>
-      <Navbar />
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 pt-20">
+    <Navbar />
+    <div className="min-h-screen flex flex-col items-center justify-center p-4">
+      <div className="absolute top-4 right-4">
+        <WalletButton />
+      </div>
+
       <div className="text-center mb-12">
         <div className="flex items-center justify-center gap-3 mb-4">
           <Spade className="w-16 h-16 text-red-500" />
@@ -54,12 +59,14 @@ export function Home() {
 
       {showNameInput ? (
         <div className="bg-gray-800 rounded-xl p-8 w-full max-w-md shadow-2xl">
-          <h2 className="text-2xl font-semibold text-white mb-6 text-center">Enter Your Name</h2>
+          <h2 className="text-2xl font-semibold text-white mb-6 text-center">
+            Enter Your Name
+          </h2>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSetName()}
+            onKeyDown={(e) => e.key === "Enter" && handleSetName()}
             placeholder="Your name"
             className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
             autoFocus
@@ -75,9 +82,10 @@ export function Home() {
       ) : (
         <div className="flex flex-col gap-4 w-full max-w-md">
           <p className="text-center text-gray-300 mb-4">
-            Welcome, <span className="text-white font-semibold">{playerName}</span>!
+            Welcome,{" "}
+            <span className="text-white font-semibold">{playerName}</span>!
           </p>
-          
+
           <button
             onClick={handleCreateGame}
             className="flex items-center justify-center gap-3 py-4 px-6 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-lg"
@@ -85,7 +93,7 @@ export function Home() {
             <Plus className="w-6 h-6" />
             Create New Game
           </button>
-          
+
           <button
             onClick={handleJoinGame}
             className="flex items-center justify-center gap-3 py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-lg"
@@ -102,7 +110,7 @@ export function Home() {
           </button>
         </div>
       )}
-      </div>
+    </div>
     </>
   );
 }
