@@ -57,17 +57,17 @@ export function PlayerSeat({
       )}
     >
       {/* Avatar with indicators */}
-      <div className="relative rounded-full w-24 h-24">
+      <div className="relative rounded-full w-32 h-32">
         {/* Timer Circle Overlay */}
         {isCurrentTurn && (
-          <svg className="absolute inset-0 w-24 h-24 -rotate-90 z-20 pointer-events-none">
+          <svg className="absolute inset-0 w-32 h-32 -rotate-90 z-20 pointer-events-none">
             <circle
-              cx="48"
-              cy="48"
-              r="45"
+              cx="64"
+              cy="64"
+              r="64"
               fill="none"
               stroke="rgba(251, 191, 36, 0.4)"
-              strokeWidth="6"
+              strokeWidth="8"
               strokeDasharray={`${2 * Math.PI * 45}`}
               strokeDashoffset="0"
               ref={progressRef}
@@ -78,9 +78,9 @@ export function PlayerSeat({
 
         <div
           className={clsx(
-            "w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg relative z-10",
+            "w-32 h-32 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg relative z-10",
             isCurrentPlayer
-              ? "bg-gradient-to-br from-blue-500 to-blue-700"
+              ? "bg-gradient-to-br from-blue-500 to-blue-700 border-4 border-blue-900"
               : "bg-gradient-to-br from-gray-600 to-gray-800",
             isCurrentTurn &&
               "ring-4 ring-yellow-400 shadow-[0_0_20px_rgba(251,191,36,0.6)]",
@@ -91,7 +91,7 @@ export function PlayerSeat({
 
         {/* Position indicators */}
         {(isDealer || isSmallBlind || isBigBlind) && (
-          <div className="absolute -top-1 -right-1 flex gap-0.5 z-50">
+          <div className="absolute top-2 right-2 flex gap-0.5 z-50">
             {isDealer && (
               <span className="w-6 h-6 bg-white text-black text-xs font-bold rounded-full flex items-center justify-center shadow-md">
                 D
@@ -110,18 +110,7 @@ export function PlayerSeat({
           </div>
         )}
 
-        {/* Current bet badge */}
-        {player.bet > 0 && (
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-yellow-500 text-black rounded-full text-sm font-bold whitespace-nowrap shadow-md z-10">
-            ${player.bet}
-          </div>
-        )}
-      </div>
-
-      {/* Chips display below avatar */}
-      <div className="mt-3 bg-black/60 px-3 py-1 rounded-full backdrop-blur-sm">
-        {/* Cards */}
-        <div className="flex mt-2">
+        <div className="flex mt-2 absolute bottom-0 z-20 left-1/2 -translate-x-1/2">
           {player.cards.length > 0 ? (
             player.cards.map((card, i) => {
               const rotdeg = 20 * (-1) ** (i + 1);
@@ -143,7 +132,19 @@ export function PlayerSeat({
           )}
         </div>
 
-        <p className="text-yellow-400 text-sm font-bold text-center">
+        {/* Current bet badge */}
+        {player.bet > 0 && (
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-yellow-500 text-black rounded-full text-sm font-bold whitespace-nowrap shadow-md z-30">
+            ${player.bet}
+          </div>
+        )}
+      </div>
+
+      {/* Chips display below avatar */}
+      <div className="mt-3 backdrop-blur-sm">
+        {/* Cards */}
+
+        <p className="text-white text-base font-medium text-center">
           ${player.chips.toLocaleString()}
         </p>
 
