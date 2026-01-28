@@ -13,7 +13,7 @@ interface PokerTableProps {
 }
 
 const seatPositions = [
-  "bottom-8 left-1/2 -translate-x-1/2",  // Position 0: Center bottom (current player)
+  "bottom-2 left-1/2 -translate-x-1/2",  // Position 0: Center bottom (current player)
   "bottom-24 left-24",                      // Position 1: Bottom left
   "top-24 left-24",                         // Position 2: Top left
   "top-24 right-24",                        // Position 3: Top right
@@ -69,14 +69,14 @@ export function PokerTable({
               {/* Community cards */}
               <div className="flex gap-2 mb-4">
                 {gameState.communityCards.map((card, i) => (
-                  <PlayingCard key={i} card={card} size="md" />
+                  <PlayingCard key={i} card={card} size="lg" />
                 ))}
                 {Array.from({
                   length: 5 - gameState.communityCards.length,
                 }).map((_, i) => (
                   <div
                     key={`empty-${i}`}
-                    className="w-14 h-20 rounded-lg border-2 border-dashed border-green-600/50"
+                    className="w-20 h-28 rounded-lg border-2 border-dashed border-green-600/50"
                   />
                 ))}
               </div>
@@ -89,7 +89,7 @@ export function PokerTable({
               </div>
 
               {/* Round indicator */}
-              <div className="mt-2 text-green-300 text-sm uppercase tracking-wider">
+              <div className="text-green-400 text-sm uppercase tracking-wider">
                 {gameState.round}
               </div>
             </div>

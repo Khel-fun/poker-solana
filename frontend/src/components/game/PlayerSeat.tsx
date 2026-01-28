@@ -57,7 +57,7 @@ export function PlayerSeat({
       )}
     >
       {/* Avatar with indicators */}
-      <div className="relative">
+      <div className="relative rounded-full w-24 h-24">
         {/* Timer Circle Overlay */}
         {isCurrentTurn && (
           <svg className="absolute inset-0 w-24 h-24 -rotate-90 z-20 pointer-events-none">
@@ -67,7 +67,7 @@ export function PlayerSeat({
               r="45"
               fill="none"
               stroke="rgba(251, 191, 36, 0.4)"
-              strokeWidth="4"
+              strokeWidth="6"
               strokeDasharray={`${2 * Math.PI * 45}`}
               strokeDashoffset="0"
               ref={progressRef}
@@ -130,7 +130,7 @@ export function PlayerSeat({
                   key={i}
                   card={showCards || isCurrentPlayer ? card : undefined}
                   hidden={!showCards && !isCurrentPlayer}
-                  size="sm"
+                  size="md"
                   style={{ transform: `rotate(${rotdeg}deg)` }}
                 />
               );
