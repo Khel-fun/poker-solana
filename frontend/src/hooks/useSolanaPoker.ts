@@ -652,7 +652,7 @@ export const useSolanaPoker = () => {
         "confirmed",
       );
 
-      return signature;
+      return { signature, gameAddress: gamePDA.toBase58() };
     },
     [publicKey, connection, sendTransaction, getGamePDA],
   );

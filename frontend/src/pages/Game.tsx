@@ -4,11 +4,13 @@ import { useGameStore } from "../stores/gameStore";
 import { PokerTable } from "../components/game/PokerTable";
 import { PlayingCard } from "../components/game/PlayingCard";
 import { Loader2, Trophy } from "lucide-react";
-import { Navbar } from '../components/layout/Navbar';
+import { Navbar } from "../components/layout/Navbar";
+import { useSolanaPoker } from "../hooks/useSolanaPoker";
 
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
+  const { walletAddress: connectedWallet } = useSolanaPoker();
   const {
     playerId,
     gameState,
@@ -18,10 +20,14 @@ export function Game() {
     winners,
     showdown,
     isConnected,
+    isSettlingGame,
+    error,
     connect,
     joinGame,
     performAction,
+    settleGameOnChain,
     clearWinners,
+    clearError,
   } = useGameStore();
 
   useEffect(() => {
@@ -47,7 +53,51 @@ export function Game() {
     }
   }, [gameState?.status, gameId, navigate]);
 
-  if (!gameState || gameState.status === 'waiting') {
+  const handleSettleGame = async () => {
+    if (!winners || winners.length === 0 || !gameState) {
+      return;
+    }
+
+    // For now, we'll settle with the first winner
+    // In a real implementation, you might need to handle multiple winners differently
+    const winner = winners[0];
+    const winnerPlayer = gameState.players.find(
+      (p) => p.id === winner.playerId,
+    );
+
+    if (!winnerPlayer) {
+      clearError();
+      useGameStore.setState({ error: "Winner player not found" });
+      return;
+    }
+
+    // If the winner doesn't have a wallet address, we need to handle this
+    let winnerWalletAddress = winnerPlayer.walletAddress;
+
+    if (!winnerWalletAddress) {
+      // If the winner is the current player, use their connected wallet
+      if (winnerPlayer.id === playerId) {
+        winnerWalletAddress = connectedWallet;
+      }
+
+      // If we still don't have a wallet address, show an error
+      if (!winnerWalletAddress) {
+        clearError();
+        useGameStore.setState({
+          error: `Winner ${winnerPlayer.name} needs to connect their wallet to receive payout`,
+        });
+        return;
+      }
+    }
+
+    try {
+      await settleGameOnChain(winnerPlayer.seatIndex, winnerWalletAddress);
+    } catch (error) {
+      console.error("Failed to settle game:", error);
+    }
+  };
+
+  if (!gameState || gameState.status === "waiting") {
     return (
       <>
         <Navbar showBackButton backTo="/games" />
@@ -96,12 +146,35 @@ export function Game() {
               })}
             </div>
 
-            <button
-              onClick={clearWinners}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-            >
-              Continue
-            </button>
+            {/* Error message */}
+            {error && (
+              <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg">
+                <p className="text-red-400 text-sm">{error}</p>
+                <button
+                  onClick={clearError}
+                  className="mt-2 text-red-300 hover:text-red-200 text-xs underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSettleGame}
+                disabled={isSettlingGame}
+                className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+              >
+                {isSettlingGame ? "Settling..." : "Settle Game On-Chain"}
+              </button>
+
+              <button
+                onClick={clearWinners}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+              >
+                Continue
+              </button>
+            </div>
           </div>
         </div>
       )}

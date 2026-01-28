@@ -135,11 +135,21 @@ export function Lobby() {
       // Use the stored tableId from game state
       const blockchainGameId = BigInt(gameState.tableId);
 
-      const signature = await startGameOnChain(
+      const result = await startGameOnChain(
         gameState.tablePDA,
         blockchainGameId,
       );
-      console.log("Game started on blockchain:", signature);
+      console.log("Game started on blockchain:", result);
+
+      // Store the game address in the game state
+      if (result.gameAddress) {
+        // Update local game state with the game address
+        useGameStore.setState((state) => ({
+          gameState: state.gameState
+            ? { ...state.gameState, gameAddress: result.gameAddress }
+            : null,
+        }));
+      }
 
       // Then trigger the backend/socket start
       startGame(gameId);
