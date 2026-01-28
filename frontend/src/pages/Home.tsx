@@ -1,19 +1,20 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useGameStore } from '../stores/gameStore';
-import { Spade, Users, Plus } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useGameStore } from "../stores/gameStore";
+import { Spade, Users, Plus } from "lucide-react";
+import { WalletButton } from "../components/WalletButton";
 import { Navbar } from '../components/layout/Navbar';
 
 export function Home() {
   const navigate = useNavigate();
   const { playerId, playerName, setPlayerInfo } = useGameStore();
-  const [name, setName] = useState(playerName || '');
+  const [name, setName] = useState(playerName || "");
   const [showNameInput, setShowNameInput] = useState(!playerName);
 
   useEffect(() => {
     if (!playerId) {
       const id = crypto.randomUUID();
-      setPlayerInfo(id, '');
+      setPlayerInfo(id, "");
     }
   }, [playerId, setPlayerInfo]);
 
@@ -29,7 +30,7 @@ export function Home() {
       setShowNameInput(true);
       return;
     }
-    navigate('/create');
+    navigate("/create");
   };
 
   const handleJoinGame = () => {
@@ -37,13 +38,16 @@ export function Home() {
       setShowNameInput(true);
       return;
     }
-    navigate('/games');
+    navigate("/games");
   };
 
   return (
     <>
       <Navbar />
       <div className="min-h-screen flex flex-col items-center justify-center p-4 pt-24 bg-[url('/bg.png')] bg-cover bg-center overflow-y-auto relative">
+      <div className="absolute top-4 right-4">
+        <WalletButton />
+      </div>
         <div className="absolute inset-0 bg-black/40 bg-gradient-to-br from-black/80 via-transparent to-black/80"></div>
 
         <div className="relative z-10 w-full max-w-lg">

@@ -1,16 +1,25 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useGameStore } from '../stores/gameStore';
-import { api } from '../services/api';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import type { GameSettings } from '../../../shared/types';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useGameStore } from "../stores/gameStore";
+import { api } from "../services/api";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import type { GameSettings } from "../../../shared/types";
+import { useSolanaPoker } from "../hooks/useSolanaPoker";
+import { WalletButton } from "../components/WalletButton";
 import { Navbar } from '../components/layout/Navbar';
 
 export function CreateGame() {
   const navigate = useNavigate();
   const { playerId, playerName, connect, joinGame } = useGameStore();
+  const {
+    createTable,
+    joinTable,
+    isConnected,
+    walletAddress,
+    getPlayerSeatPDA,
+  } = useSolanaPoker();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const [gameName, setGameName] = useState(`${playerName}'s Game`);
   const [settings, setSettings] = useState<GameSettings>({
@@ -23,20 +32,70 @@ export function CreateGame() {
 
   const handleCreate = async () => {
     if (!playerId || !playerName) {
-      navigate('/');
+      navigate("/");
+      return;
+    }
+
+    if (!isConnected) {
+      setError("Please connect your wallet first");
       return;
     }
 
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
+      // Generate a unique table ID based on timestamp
+      const tableId = BigInt(Date.now());
+
+      // Convert chip amounts to lamports (1 chip = 1000000 lamports for this example)
+      const lamportsPerChip = BigInt(1000000);
+      const buyInMin = BigInt(settings.startingChips) * lamportsPerChip;
+      const buyInMax = buyInMin * BigInt(2); // Allow up to 2x buy-in
+      const smallBlind = BigInt(settings.smallBlind) * lamportsPerChip;
+
+      // Create table on blockchain
+      const { signature, tablePDA } = await createTable(
+        tableId,
+        settings.maxPlayers,
+        buyInMin,
+        buyInMax,
+        smallBlind,
+      );
+
+      console.log("✅ Table created on blockchain:", { signature, tablePDA });
+
+      // Wait for blockchain state to propagate (same as test does)
+      console.log("⏳ Waiting for blockchain state to propagate...");
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay
+
+      // Host joins their own table
+      console.log("🎲 Host joining table...");
+      const joinSignature = await joinTable(tablePDA, buyInMin);
+      console.log("✅ Host joined table:", joinSignature);
+
+      // Derive and store player seat PDA for host
+      const { PublicKey } = await import("@solana/web3.js");
+      const tablePubkey = new PublicKey(tablePDA);
+      const playerPubkey = new PublicKey(walletAddress!);
+      const playerSeatPDA = await getPlayerSeatPDA(tablePubkey, playerPubkey);
+      console.log("📍 Host Player Seat PDA:", playerSeatPDA.toBase58());
+
+      // Create game on backend for coordination
       const result = await api.createGame({
         hostId: playerId,
         hostName: playerName,
         name: gameName,
         settings,
+        tablePDA,
+        tableId: tableId.toString(),
       });
+
+      // Store playerSeatAddress in localStorage for this game
+      localStorage.setItem(
+        `playerSeat_${result.gameId}_${playerId}`,
+        playerSeatPDA.toBase58(),
+      );
 
       connect();
 
@@ -44,15 +103,15 @@ export function CreateGame() {
         joinGame(result.gameId);
         navigate(`/lobby/${result.gameId}`);
       }, 100);
-    } catch (err) {
-      setError('Failed to create game. Please try again.');
+    } catch (err: any) {
+      console.error("Failed to create game:", err);
+      setError(err?.message || "Failed to create game. Please try again.");
       setLoading(false);
     }
   };
 
   return (
     <>
-      <Navbar />
       <Navbar />
       <div className="min-h-screen bg-[url('/bg.png')] bg-cover bg-center pt-24 pb-12 overflow-y-auto w-full">
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] pointer-events-none"></div>
@@ -182,13 +241,13 @@ export function CreateGame() {
 
             <button
               onClick={handleCreate}
-              disabled={loading || !gameName.trim()}
+              disabled={loading || !gameName.trim() || !isConnected}
               className="w-full py-4 bg-gradient-to-r from-yellow-600 to-yellow-400 hover:from-yellow-500 hover:to-yellow-300 disabled:from-gray-800 disabled:to-gray-700 disabled:cursor-not-allowed text-black font-black text-base uppercase tracking-widest rounded-xl transition-all transform hover:translate-y-[-2px] active:translate-y-[0px] shadow-[0_4px_20px_rgba(234,179,8,0.3)] disabled:shadow-none flex items-center justify-center gap-3 mt-2"
             >
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Initializing...
+                  Creating...
                 </>
               ) : (
                 'Create Table'

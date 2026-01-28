@@ -122,7 +122,7 @@ export function ActionPanel({
             </span>
             <button
               onClick={handleFold}
-              className="relative w-[100px] h-[100px] rounded-full flex items-center justify-center text-black transition-all hover:scale-105"
+              className="relative shiny-action-btn w-[100px] h-[100px] rounded-full flex items-center justify-center text-black transition-all hover:scale-105"
             >
               <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 80 80">
                 <circle
@@ -137,7 +137,7 @@ export function ActionPanel({
                 />
               </svg>
               <div className="absolute bg-gradient-to-br from-red-500 to-red-700 hover:from-red-400 hover:to-red-600 inset-3 rounded-full border-2 border-red-900/30" />
-              <X className="w-10 h-10 stroke-[3] relative z-10" />
+              <X className="w-10 h-10 stroke-[3] relative z-10 text-white" />
             </button>
           </div>
         )}
@@ -149,7 +149,7 @@ export function ActionPanel({
             </span>
             <button
               onClick={handleCheck}
-              className="relative w-[100px] h-[100px] rounded-full flex items-center justify-center text-white transition-all hover:scale-105"
+              className="relative shiny-action-btn w-[100px] h-[100px] rounded-full flex items-center justify-center text-white transition-all hover:scale-105"
             >
               <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 80 80">
                 <circle
@@ -176,7 +176,7 @@ export function ActionPanel({
             </span>
             <button
               onClick={handleCall}
-              className="relative w-[100px] h-[100px] rounded-full flex flex-col items-center justify-center text-white transition-all hover:scale-105"
+              className="relative shiny-action-btn w-[100px] h-[100px] rounded-full flex flex-col items-center justify-center text-white transition-all hover:scale-105"
             >
               <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 80 80">
                 <circle
@@ -203,7 +203,7 @@ export function ActionPanel({
             </span>
             <button
               onClick={() => setShowRaiseSlider(true)}
-              className="relative w-[100px] h-[100px] rounded-full flex items-center justify-center text-white transition-all hover:scale-105"
+              className="relative shiny-action-btn w-[100px] h-[100px] rounded-full flex items-center justify-center text-white transition-all hover:scale-105"
             >
               <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 80 80">
                 <circle
@@ -230,7 +230,7 @@ export function ActionPanel({
             </span>
             <button
               onClick={handleAllIn}
-              className="relative w-[100px] h-[100px] rounded-full flex items-center justify-center text-black transition-all hover:scale-105"
+              className="relative shiny-action-btn w-[100px] h-[100px] rounded-full flex items-center justify-center text-black transition-all hover:scale-105"
             >
               <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 80 80">
                 <circle

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useGameStore } from '../stores/gameStore';
-import { api } from '../services/api';
-import { ArrowLeft, Users, RefreshCw, Loader2 } from 'lucide-react';
-import type { GameListItem } from '../../../shared/types';
-import { Navbar } from '../components/layout/Navbar';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useGameStore } from "../stores/gameStore";
+import { api } from "../services/api";
+import { ArrowLeft, Users, RefreshCw, Loader2 } from "lucide-react";
+import type { GameListItem } from "../../../shared/types";
+import { WalletButton } from "../components/WalletButton";
+import { Navbar } from "../components/layout/Navbar";
 
 export function ActiveGames() {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ export function ActiveGames() {
       const activeGames = await api.getActiveGames();
       setGames(activeGames);
     } catch (err) {
-      console.error('Failed to fetch games:', err);
+      console.error("Failed to fetch games:", err);
     } finally {
       setLoading(false);
     }
@@ -33,17 +34,26 @@ export function ActiveGames() {
 
   const handleJoin = async (gameId: string) => {
     if (!playerId || !playerName) {
-      navigate('/');
+      navigate("/");
       return;
     }
 
     setJoining(gameId);
-    connect();
 
-    setTimeout(() => {
-      joinGame(gameId);
-      navigate(`/lobby/${gameId}`);
-    }, 100);
+    try {
+      // Connect wallet and websocket
+      connect();
+
+      // Join the game room (websocket)
+      // The blockchain transaction will happen in the Lobby component
+      setTimeout(() => {
+        joinGame(gameId);
+        navigate(`/lobby/${gameId}`);
+      }, 100);
+    } catch (err: any) {
+      console.error("Failed to join game:", err);
+      setJoining(null);
+    }
   };
 
   return (
