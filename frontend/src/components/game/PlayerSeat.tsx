@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import gsap from "gsap";
 import type { Player } from "../../../../shared/types";
 import { PlayingCard } from "./PlayingCard";
 import { useCardDecryption } from "../../hooks/useCardDecryption";
@@ -14,6 +16,8 @@ interface PlayerSeatProps {
   playerSeatAddress?: string; // Solana PDA for this player's seat
   tableAddress?: string; // Solana PDA for the poker table
   gameId?: bigint; // Game ID for revealHand calls
+  timeRemaining?: number;
+  turnTime?: number;
 }
 
 export function PlayerSeat({
@@ -27,8 +31,31 @@ export function PlayerSeat({
   playerSeatAddress,
   tableAddress,
   gameId,
+  timeRemaining = 30,
+  turnTime = 30,
 }: PlayerSeatProps) {
   const { myCards, decryptMyCards, isDecrypting, error } = useCardDecryption();
+  const progressRef = useRef<SVGCircleElement>(null);
+
+  // Animate timer circle with GSAP
+  useEffect(() => {
+    if (isCurrentTurn && progressRef.current) {
+      const circumference = 2 * Math.PI * 45; // r=45
+
+      // Start with full circle (offset 0) and animate to empty (offset = circumference)
+      gsap.set(progressRef.current, { strokeDashoffset: 0 });
+      gsap.to(progressRef.current, {
+        strokeDashoffset: circumference,
+        duration: turnTime,
+        ease: "linear",
+        overwrite: true,
+      });
+    } else if (progressRef.current) {
+      // Kill animation and reset when not current turn
+      gsap.killTweensOf(progressRef.current);
+      gsap.set(progressRef.current, { strokeDashoffset: 2 * Math.PI * 45 });
+    }
+  }, [isCurrentTurn, turnTime]);
 
   // Try to get playerSeatAddress from localStorage if not provided
   // This is a workaround until backend properly tracks this
@@ -58,40 +85,70 @@ export function PlayerSeat({
   return (
     <div
       className={clsx(
-        "flex flex-col items-center p-3 rounded-xl transition-all",
-        isCurrentTurn && "ring-2 ring-yellow-400 bg-yellow-900/20",
-        player.folded && "opacity-50",
+        "flex flex-col items-center transition-all",
+        player.folded && "opacity-40",
       )}
     >
       {/* Avatar */}
-      <div className="relative mb-2">
+      <div className="relative rounded-full w-24 h-24">
+        {/* Timer Circle Overlay */}
+        {isCurrentTurn && (
+          <svg className="absolute inset-0 w-24 h-24 -rotate-90 z-20 pointer-events-none">
+            <circle
+              cx="48"
+              cy="48"
+              r="45"
+              fill="none"
+              stroke="rgba(251, 191, 36, 0.4)"
+              strokeWidth="6"
+              strokeDasharray={`${2 * Math.PI * 45}`}
+              strokeDashoffset="0"
+              ref={progressRef}
+              className="drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]"
+            />
+          </svg>
+        )}
+
         <div
           className={clsx(
-            "w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg",
-            isCurrentPlayer ? "bg-blue-600" : "bg-gray-600",
+            "w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg relative z-10",
+            isCurrentPlayer
+              ? "bg-gradient-to-br from-blue-500 to-blue-700"
+              : "bg-gradient-to-br from-gray-600 to-gray-800",
+            isCurrentTurn &&
+              "ring-4 ring-yellow-400 shadow-[0_0_20px_rgba(251,191,36,0.6)]",
           )}
         >
           {player.name.charAt(0).toUpperCase()}
         </div>
 
         {/* Position indicators */}
-        <div className="absolute -top-1 -right-1 flex gap-0.5">
-          {isDealer && (
-            <span className="w-5 h-5 bg-white text-black text-xs font-bold rounded-full flex items-center justify-center">
-              D
-            </span>
-          )}
-          {isSmallBlind && (
-            <span className="w-5 h-5 bg-blue-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-              SB
-            </span>
-          )}
-          {isBigBlind && (
-            <span className="w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-              BB
-            </span>
-          )}
-        </div>
+        {(isDealer || isSmallBlind || isBigBlind) && (
+          <div className="absolute -top-1 -right-1 flex gap-0.5 z-50">
+            {isDealer && (
+              <span className="w-6 h-6 bg-white text-black text-xs font-bold rounded-full flex items-center justify-center shadow-md">
+                D
+              </span>
+            )}
+            {isSmallBlind && (
+              <span className="w-6 h-6 bg-blue-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md">
+                SB
+              </span>
+            )}
+            {isBigBlind && (
+              <span className="w-6 h-6 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md">
+                BB
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Current bet badge */}
+        {player.bet > 0 && (
+          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-yellow-500 text-black rounded-full text-sm font-bold whitespace-nowrap shadow-md z-10">
+            ${player.bet}
+          </div>
+        )}
       </div>
 
       {/* Name */}
@@ -99,30 +156,33 @@ export function PlayerSeat({
         {player.name}
       </p>
 
-      {/* Chips */}
-      <p className="text-yellow-400 text-xs font-semibold">
-        ${player.chips.toLocaleString()}
-      </p>
-
       {/* Cards */}
       <div className="flex flex-col items-center gap-2 mt-2">
         <div className="flex gap-1">
           {displayCards.length > 0 ? (
-            displayCards.map((card, i) => (
-              <PlayingCard
-                key={i}
-                card={showCards || isCurrentPlayer ? card : undefined}
-                hidden={!showCards && !isCurrentPlayer}
-                size="sm"
-              />
-            ))
+            displayCards.map((card, i) => {
+              const rotdeg = 20 * (-1) ** (i + 1);
+              return (
+                <PlayingCard
+                  key={i}
+                  card={showCards || isCurrentPlayer ? card : undefined}
+                  hidden={!showCards && !isCurrentPlayer}
+                  size="md"
+                  style={{ transform: `rotate(${rotdeg}deg)` }}
+                />
+              );
+            })
           ) : (
             <>
-              <PlayingCard hidden size="sm" />
-              <PlayingCard hidden size="sm" />
+              {/* <PlayingCard hidden size="sm" />
+              <PlayingCard hidden size="sm" /> */}
             </>
           )}
         </div>
+        {/* Chips */}
+        <p className="text-yellow-400 text-xs font-semibold">
+          ${player.chips.toLocaleString()}
+        </p>
 
         {/* Reveal button - only show for current player if cards haven't been decrypted yet */}
         {isCurrentPlayer &&

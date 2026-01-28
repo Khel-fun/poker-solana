@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import type { GameSettings } from "../../../shared/types";
 import { useSolanaPoker } from "../hooks/useSolanaPoker";
 import { WalletButton } from "../components/WalletButton";
+import { Navbar } from '../components/layout/Navbar';
 
 export function CreateGame() {
   const navigate = useNavigate();

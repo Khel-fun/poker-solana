@@ -4,6 +4,7 @@ import { useGameStore } from "../stores/gameStore";
 import { ArrowLeft, Users, Play, Loader2, Crown } from "lucide-react";
 import { useSolanaPoker } from "../hooks/useSolanaPoker";
 import { WalletButton } from "../components/WalletButton";
+import { Navbar } from "../components/layout/Navbar";
 
 export function Lobby() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -156,9 +157,12 @@ export function Lobby() {
 
   if (!gameState) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
-      </div>
+      <>
+        <Navbar />
+        <div className="min-h-screen flex items-center justify-center pt-20">
+          <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+        </div>
+      </>
     );
   }
 

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../stores/gameStore";
 import { Spade, Users, Plus } from "lucide-react";
 import { WalletButton } from "../components/WalletButton";
+import { Navbar } from '../components/layout/Navbar';
 
 export function Home() {
   const navigate = useNavigate();
@@ -41,6 +42,8 @@ export function Home() {
   };
 
   return (
+    <>
+    <Navbar />
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <div className="absolute top-4 right-4">
         <WalletButton />
@@ -108,5 +111,6 @@ export function Home() {
         </div>
       )}
     </div>
+    </>
   );
 }

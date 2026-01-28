@@ -2,9 +2,9 @@ import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "../stores/gameStore";
 import { PokerTable } from "../components/game/PokerTable";
-import { ActionPanel } from "../components/game/ActionPanel";
 import { PlayingCard } from "../components/game/PlayingCard";
 import { Loader2, Trophy } from "lucide-react";
+import { Navbar } from '../components/layout/Navbar';
 
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -47,16 +47,16 @@ export function Game() {
     }
   }, [gameState?.status, gameId, navigate]);
 
-  if (!gameState || gameState.status === "waiting") {
+  if (!gameState || gameState.status === 'waiting') {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
-      </div>
+      <>
+        <Navbar showBackButton backTo="/games" />
+        <div className="min-h-screen flex items-center justify-center pt-20">
+          <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+        </div>
+      </>
     );
   }
-
-  const currentPlayer = gameState.players.find((p) => p.id === playerId);
-  const isMyTurn = currentTurnPlayerId === playerId;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 p-4">
@@ -152,51 +152,10 @@ export function Game() {
           gameAddress={gameState.gameAddress}
           tableAddress={gameState.tablePDA}
           gameId={gameState.tableId ? BigInt(gameState.tableId) : 0n}
+          validActions={validActions}
+          timeRemaining={timeRemaining}
+          onAction={(action) => performAction(gameId!, action)}
         />
-
-        {/* Player's cards (larger view) */}
-        {currentPlayer && currentPlayer.cards.length > 0 && (
-          <div className="flex justify-center gap-3 mt-4">
-            {currentPlayer.cards.map((card, i) => (
-              <PlayingCard key={i} card={card} size="lg" />
-            ))}
-          </div>
-        )}
-
-        {/* Action panel */}
-        {isMyTurn && currentPlayer && !currentPlayer.folded && (
-          <div className="max-w-md mx-auto mt-6">
-            <ActionPanel
-              validActions={validActions}
-              currentBet={gameState.currentBet}
-              playerBet={currentPlayer.bet}
-              playerChips={currentPlayer.chips}
-              minRaise={gameState.minRaise}
-              onAction={(action) => performAction(gameId!, action)}
-              timeRemaining={timeRemaining}
-            />
-          </div>
-        )}
-
-        {/* Waiting message */}
-        {!isMyTurn && (
-          <div className="text-center mt-6 text-gray-400">
-            {currentTurnPlayerId ? (
-              <p>
-                Waiting for{" "}
-                <span className="text-white font-semibold">
-                  {
-                    gameState.players.find((p) => p.id === currentTurnPlayerId)
-                      ?.name
-                  }
-                </span>{" "}
-                to act...
-              </p>
-            ) : (
-              <p>Waiting...</p>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );
