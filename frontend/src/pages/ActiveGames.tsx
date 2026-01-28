@@ -52,7 +52,7 @@ export function ActiveGames() {
       <div className="min-h-screen bg-[url('/bg.png')] bg-cover bg-center pt-24 pb-12 overflow-y-auto relative w-full">
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] pointer-events-none"></div>
 
-        <div className="relative z-10 max-w-5xl mx-auto px-4 w-full">
+        <div className="relative z-10 max-w-[90vw] mx-auto px-4 w-full">
           <div className="flex items-center justify-between mb-8">
             <button
               onClick={() => navigate('/')}

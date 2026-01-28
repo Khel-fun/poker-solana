@@ -14,7 +14,7 @@ export function CreateGame() {
 
   const [gameName, setGameName] = useState(`${playerName}'s Game`);
   const [settings, setSettings] = useState<GameSettings>({
-    maxPlayers: 6,
+    maxPlayers: 5,
     smallBlind: 10,
     bigBlind: 20,
     startingChips: 1000,
@@ -57,7 +57,7 @@ export function CreateGame() {
       <div className="min-h-screen bg-[url('/bg.png')] bg-cover bg-center pt-24 pb-12 overflow-y-auto w-full">
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] pointer-events-none"></div>
 
-        <div className="relative z-10 max-w-4xl mx-auto px-4 w-full flex flex-col justify-center">
+        <div className="relative z-10 max-w-[90vw] mx-auto px-4 w-full flex flex-col justify-center">
           <div className="flex items-center justify-between mb-8">
             <button
               onClick={() => navigate('/')}
@@ -67,7 +67,7 @@ export function CreateGame() {
               <span className="uppercase tracking-widest font-bold text-sm">Back</span>
             </button>
 
-            <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-100 via-yellow-400 to-yellow-600 uppercase tracking-tight" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
+            <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-100 via-yellow-400 to-yellow-600 uppercase tracking-tight" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
               Setup Table
             </h1>
             <div className="px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-bold uppercase tracking-wider">
@@ -79,7 +79,7 @@ export function CreateGame() {
             {/* Decorative shine */}
             <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-yellow-500/10 blur-[80px] rounded-full point-events-none"></div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+            <div className="flex flex-col gap-6 relative z-10">
               <div className="space-y-4">
                 <div>
                   <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">Table Name</label>
@@ -191,7 +191,7 @@ export function CreateGame() {
                   Initializing...
                 </>
               ) : (
-                'Launch Table'
+                'Create Table'
               )}
             </button>
           </div>

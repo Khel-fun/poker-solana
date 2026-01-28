@@ -145,7 +145,7 @@ export function Lobby() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 px-2 overflow-y-auto min-h-0 flex-1 content-start">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 px-2 py-3 overflow-y-auto min-h-0 flex-1 content-start">
               {gameState.players.map((player) => (
                 <div
                   key={player.id}
@@ -161,7 +161,7 @@ export function Lobby() {
                   {/* Golden Header Strip */}
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-yellow-500 to-transparent opacity-50"></div>
 
-                  <div className="relative p-3 flex flex-col h-full z-10">
+                  <div className="relative p-3 flex flex-col h-full z-10 pt-5">
                     <div className="flex justify-center mb-3 relative">
                       {player.id === gameState.hostId && (
                         <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-yellow-600 to-yellow-400 text-black text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-lg z-20 flex items-center gap-1">
