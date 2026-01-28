@@ -59,7 +59,7 @@ export function Game() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
       {/* Winners modal */}
       {winners && winners.length > 0 && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
@@ -144,7 +144,7 @@ export function Game() {
       )}
 
       {/* Main game area */}
-      <div className="max-w-6xl mx-auto">
+      <div className="mx-auto">
         <PokerTable
           gameState={gameState}
           currentPlayerId={playerId!}
