@@ -17,6 +17,7 @@ import {
   getProgramDerivedAddress,
   getAddressEncoder,
 } from "@solana/kit";
+import { DISCRIMINATORS } from "../utils/discriminator";
 
 // Helper function to write u64 in little-endian format
 function writeU64LE(buffer: Uint8Array, value: bigint, offset: number): void {
@@ -147,11 +148,8 @@ function createTableInstructionData(
   buyInMax: bigint,
   smallBlind: bigint,
 ): Uint8Array {
-  // Anchor discriminator for create_table
-  // You may need to update this discriminator based on your actual IDL
-  const discriminator = new Uint8Array([
-    0xd6, 0x8e, 0x83, 0xfa, 0xf2, 0x53, 0x87, 0xb9,
-  ]);
+  // Use the pre-calculated discriminator
+  const discriminator = DISCRIMINATORS.CREATE_TABLE;
 
   const data = new Uint8Array(8 + 8 + 1 + 8 + 8 + 8);
   let offset = 0;
@@ -186,11 +184,8 @@ function createTableInstructionData(
  * Creates a join table instruction data
  */
 function joinTableInstructionData(buyIn: bigint): Uint8Array {
-  // Anchor discriminator for join_table
-  // You may need to update this discriminator based on your actual IDL
-  const discriminator = new Uint8Array([
-    0x0e, 0x75, 0x54, 0x33, 0x5f, 0x92, 0xab, 0x46,
-  ]);
+  // Use the pre-calculated discriminator
+  const discriminator = DISCRIMINATORS.JOIN_TABLE;
 
   const data = new Uint8Array(8 + 8);
 
@@ -210,10 +205,8 @@ function startGameInstructionData(
   gameId: bigint,
   frontendAccount: Address,
 ): Uint8Array {
-  // Anchor discriminator for start_game
-  const discriminator = new Uint8Array([
-    0xf9, 0x2f, 0xfc, 0xac, 0xb8, 0xa2, 0xf5, 0x0e,
-  ]);
+  // Use the pre-calculated discriminator
+  const discriminator = DISCRIMINATORS.START_GAME;
 
   const addressEncoder = getAddressEncoder();
   const frontendBytes = addressEncoder.encode(frontendAccount);
@@ -354,7 +347,7 @@ export async function startGame(
   tableAddress: Address,
   gameId: bigint,
   frontendAccount?: Address,
-): Promise<string> {
+): Promise<{ signature: string; gameAddress: string }> {
   // Derive game PDA
   const [gamePDA] = await getGamePDA(tableAddress, gameId);
 
@@ -384,6 +377,84 @@ export async function startGame(
       setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
     (tx: any) =>
       appendTransactionMessageInstructions([startGameInstruction], tx),
+  );
+
+  // Sign transaction
+  const signedTransaction = await signTransactionMessageWithSigners(
+    transactionMessage as any,
+  );
+
+  // Send and confirm
+  await sendAndConfirmTransaction(signedTransaction as any, {
+    commitment: "confirmed",
+  });
+
+  // Get signature
+  const signature = getSignatureFromTransaction(signedTransaction);
+  return { signature, gameAddress: gamePDA };
+}
+
+/**
+ * Creates a settle game instruction data
+ */
+function settleGameInstructionData(winnerSeatIndex: number): Uint8Array {
+  // Use the pre-calculated discriminator
+  const discriminator = DISCRIMINATORS.SETTLE_GAME;
+
+  const data = new Uint8Array(8 + 1);
+
+  // Discriminator
+  data.set(discriminator, 0);
+
+  // winner_seat_index: u8
+  data[8] = winnerSeatIndex;
+
+  return data;
+}
+
+/**
+ * Settle the game and pay out the winner
+ */
+export async function settleGame(
+  signer: KeyPairSigner,
+  tableAddress: Address,
+  gameAddress: Address,
+  winnerSeatIndex: number,
+  winnerWalletAddress: Address,
+): Promise<string> {
+  // Derive PDAs
+  const [vaultPDA] = await getVaultPDA(tableAddress);
+  const [winnerSeatPDA] = await getPlayerSeatPDA(
+    tableAddress,
+    winnerWalletAddress,
+  );
+
+  // Get latest blockhash
+  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+
+  // Create instruction
+  const settleGameInstruction: Instruction = {
+    programAddress: POKER_PROGRAM_ID,
+    accounts: [
+      { address: tableAddress, role: 1 /* AccountRole.WRITABLE */ },
+      { address: gameAddress, role: 1 /* AccountRole.WRITABLE */ },
+      { address: winnerSeatPDA, role: 0 /* AccountRole.READONLY */ },
+      { address: winnerWalletAddress, role: 1 /* AccountRole.WRITABLE */ },
+      { address: vaultPDA, role: 1 /* AccountRole.WRITABLE */ },
+      { address: signer.address, role: 3 /* AccountRole.WRITABLE_SIGNER */ },
+      { address: SYSTEM_PROGRAM_ID, role: 0 /* AccountRole.READONLY */ },
+    ],
+    data: settleGameInstructionData(winnerSeatIndex),
+  };
+
+  // Build transaction using pipe
+  const transactionMessage = pipe(
+    createTransactionMessage({ version: 0 }),
+    (tx: any) => setTransactionMessageFeePayerSigner(signer, tx),
+    (tx: any) =>
+      setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+    (tx: any) =>
+      appendTransactionMessageInstructions([settleGameInstruction], tx),
   );
 
   // Sign transaction
