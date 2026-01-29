@@ -12,9 +12,6 @@ import {
   disconnectSocket,
   type GameSocket,
 } from "../services/socket";
-import { settleGame } from "../services/solana";
-import { ensureWalletConnected } from "../services/wallet";
-import { address, type Address } from "@solana/kit";
 
 interface GameStore {
   // Player info
@@ -40,14 +37,18 @@ interface GameStore {
   setPlayerInfo: (id: string, name: string) => void;
   connect: () => void;
   disconnect: () => void;
-  joinGame: (gameId: string) => void;
+  joinGame: (
+    gameId: string,
+    walletAddress?: string,
+    playerSeatAddress?: string,
+  ) => void;
   leaveGame: (gameId: string) => void;
   startGame: (gameId: string) => void;
   performAction: (gameId: string, action: PlayerAction) => void;
   sendChatMessage: (gameId: string, message: string) => void;
   settleGameOnChain: (
     winnerSeatIndex: number,
-    winnerWalletAddress: string,
+    settleGameFn: (winnerSeatIndex: number) => Promise<string>,
   ) => Promise<void>;
   clearError: () => void;
   clearWinners: () => void;
@@ -183,12 +184,14 @@ export const useGameStore = create<GameStore>()(
           set({ isConnected: false });
         },
 
-        joinGame: (gameId) => {
+        joinGame: (gameId, walletAddress, playerSeatAddress) => {
           const { playerId, playerName } = get();
           console.log("[Store] joinGame called:", {
             gameId,
             playerId,
             playerName,
+            walletAddress,
+            playerSeatAddress,
             hasSocket: !!socket,
           });
           if (!socket || !playerId) {
@@ -198,7 +201,12 @@ export const useGameStore = create<GameStore>()(
           console.log("[Store] Emitting join_game event");
           socket.emit("join_game", {
             gameId,
-            player: { id: playerId, name: playerName },
+            player: {
+              id: playerId,
+              name: playerName,
+              walletAddress,
+              playerSeatAddress,
+            },
           });
         },
 
@@ -223,7 +231,7 @@ export const useGameStore = create<GameStore>()(
           socket.emit("chat_message", { gameId, message });
         },
 
-        settleGameOnChain: async (winnerSeatIndex, winnerWalletAddress) => {
+        settleGameOnChain: async (winnerSeatIndex, settleGameFn) => {
           const { gameState } = get();
           if (!gameState?.tablePDA) {
             set({ error: "Missing table address" });
@@ -233,40 +241,9 @@ export const useGameStore = create<GameStore>()(
           try {
             set({ isSettlingGame: true, error: null });
 
-            // Get wallet signer
-            const signer = await ensureWalletConnected();
-
-            // Convert table address
-            const tableAddress = address(gameState.tablePDA);
-
-            // Derive game address if not stored
-            let gameAddress: Address;
-            if (gameState.gameAddress) {
-              gameAddress = address(gameState.gameAddress);
-            } else if (gameState.tableId) {
-              // Derive game PDA from table and game ID
-              const { getGamePDA } = await import("../services/solana");
-              const gameId = BigInt(gameState.tableId);
-              const [gamePDA] = await getGamePDA(tableAddress, gameId);
-              gameAddress = gamePDA;
-              console.log("Derived game address:", gameAddress);
-            } else {
-              set({
-                error: "Missing game address and table ID. Cannot settle game.",
-              });
-              return;
-            }
-
-            const winnerAddress = address(winnerWalletAddress);
-
             console.log("Settling game on-chain...");
-            console.log("Table:", tableAddress, "Game:", gameAddress);
-            console.log(
-              "Winner seat:",
-              winnerSeatIndex,
-              "Winner wallet:",
-              winnerAddress,
-            );
+            console.log("Winner seat:", winnerSeatIndex);
+            console.log("Final pot:", gameState.pot);
 
             // Note: In MVP, the pot is tracked off-chain in the backend
             // The vault only contains initial buy-ins, not the ongoing bets
@@ -275,15 +252,9 @@ export const useGameStore = create<GameStore>()(
               "Note: MVP uses off-chain pot tracking - vault may have insufficient funds for payout",
             );
 
-            // Call settle game on-chain
+            // Call settle game on-chain using the passed function
             try {
-              const signature = await settleGame(
-                signer,
-                tableAddress,
-                gameAddress,
-                winnerSeatIndex,
-                winnerAddress,
-              );
+              const signature = await settleGameFn(winnerSeatIndex);
 
               console.log("Game settled on-chain:", signature);
 

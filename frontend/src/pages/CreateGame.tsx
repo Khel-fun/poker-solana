@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useGameStore } from "../stores/gameStore";
 import { api } from "../services/api";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import type { GameSettings } from "../../../shared/types";
 import { useSolanaPoker } from "../hooks/useSolanaPoker";
 import { WalletButton } from "../components/WalletButton";
-import { Navbar } from '../components/layout/Navbar';
+import { Navbar } from "../components/layout/Navbar";
 
 export function CreateGame() {
   const navigate = useNavigate();
+  const { publicKey } = useWallet();
   const { playerId, playerName, connect, joinGame } = useGameStore();
   const {
     createTable,
@@ -87,6 +89,8 @@ export function CreateGame() {
         hostName: playerName,
         name: gameName,
         settings,
+        hostWalletAddress: walletAddress!,
+        hostPlayerSeatAddress: playerSeatPDA.toBase58(),
         tablePDA,
         tableId: tableId.toString(),
       });
@@ -100,7 +104,11 @@ export function CreateGame() {
       connect();
 
       setTimeout(() => {
-        joinGame(result.gameId);
+        joinGame(
+          result.gameId,
+          publicKey?.toBase58(),
+          playerSeatPDA.toBase58(),
+        );
         navigate(`/lobby/${result.gameId}`);
       }, 100);
     } catch (err: any) {
@@ -119,14 +127,19 @@ export function CreateGame() {
         <div className="relative z-10 max-w-[90vw] mx-auto px-4 w-full flex flex-col justify-center">
           <div className="flex items-center justify-between mb-8">
             <button
-              onClick={() => navigate('/')}
+              onClick={() => navigate("/")}
               className="flex items-center gap-2 text-yellow-500/60 hover:text-yellow-400 transition-colors group"
             >
               <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-              <span className="uppercase tracking-widest font-bold text-sm">Back</span>
+              <span className="uppercase tracking-widest font-bold text-sm">
+                Back
+              </span>
             </button>
 
-            <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-100 via-yellow-400 to-yellow-600 uppercase tracking-tight" style={{ textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
+            <h1
+              className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-100 via-yellow-400 to-yellow-600 uppercase tracking-tight"
+              style={{ textShadow: "0 2px 10px rgba(0,0,0,0.5)" }}
+            >
               Setup Table
             </h1>
             <div className="px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-bold uppercase tracking-wider">
@@ -141,7 +154,9 @@ export function CreateGame() {
             <div className="flex flex-col gap-6 relative z-10">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">Table Name</label>
+                  <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">
+                    Table Name
+                  </label>
                   <input
                     type="text"
                     value={gameName}
@@ -153,40 +168,67 @@ export function CreateGame() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">Max Players</label>
+                    <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">
+                      Max Players
+                    </label>
                     <select
                       value={settings.maxPlayers}
-                      onChange={(e) => setSettings({ ...settings, maxPlayers: parseInt(e.target.value) })}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          maxPlayers: parseInt(e.target.value),
+                        })
+                      }
                       className="w-full px-4 py-3 bg-black/40 border border-yellow-500/20 rounded-xl text-yellow-100 focus:outline-none focus:border-yellow-500/60 focus:ring-1 focus:ring-yellow-500/60 transition-all appearance-none cursor-pointer"
                     >
                       {[2, 3, 4, 5, 6, 7, 8].map((n) => (
-                        <option key={n} value={n} className="bg-gray-900">{n} Players</option>
+                        <option key={n} value={n} className="bg-gray-900">
+                          {n} Players
+                        </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">Turn Timer</label>
+                    <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">
+                      Turn Timer
+                    </label>
                     <select
                       value={settings.turnTimeSeconds}
-                      onChange={(e) => setSettings({ ...settings, turnTimeSeconds: parseInt(e.target.value) })}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          turnTimeSeconds: parseInt(e.target.value),
+                        })
+                      }
                       className="w-full px-4 py-3 bg-black/40 border border-yellow-500/20 rounded-xl text-yellow-100 focus:outline-none focus:border-yellow-500/60 focus:ring-1 focus:ring-yellow-500/60 transition-all appearance-none cursor-pointer"
                     >
                       {[15, 30, 45, 60, 90, 120].map((n) => (
-                        <option key={n} value={n} className="bg-gray-900">{n} Seconds</option>
+                        <option key={n} value={n} className="bg-gray-900">
+                          {n} Seconds
+                        </option>
                       ))}
                     </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">Starting Chips</label>
+                  <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">
+                    Starting Chips
+                  </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-500/40 font-bold">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-500/40 font-bold">
+                      $
+                    </span>
                     <input
                       type="number"
                       value={settings.startingChips}
-                      onChange={(e) => setSettings({ ...settings, startingChips: parseInt(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          startingChips: parseInt(e.target.value) || 0,
+                        })
+                      }
                       className="w-full pl-8 pr-5 py-3 bg-black/40 border border-yellow-500/20 rounded-xl text-yellow-100 focus:outline-none focus:border-yellow-500/60 focus:ring-1 focus:ring-yellow-500/60 transition-all font-mono"
                     />
                   </div>
@@ -196,20 +238,30 @@ export function CreateGame() {
               <div className="p-5 rounded-2xl bg-gradient-to-br from-yellow-900/10 to-black border border-yellow-500/10 space-y-4 flex flex-col justify-center">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></div>
-                  <h3 className="text-yellow-500 font-bold uppercase tracking-wider text-[10px]">Stakes Configuration</h3>
+                  <h3 className="text-yellow-500 font-bold uppercase tracking-wider text-[10px]">
+                    Stakes Configuration
+                  </h3>
                 </div>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">Small Blind</label>
+                    <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">
+                      Small Blind
+                    </label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-500/40 font-bold">$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-500/40 font-bold">
+                        $
+                      </span>
                       <input
                         type="number"
                         value={settings.smallBlind}
                         onChange={(e) => {
                           const sb = parseInt(e.target.value) || 0;
-                          setSettings({ ...settings, smallBlind: sb, bigBlind: sb * 2 });
+                          setSettings({
+                            ...settings,
+                            smallBlind: sb,
+                            bigBlind: sb * 2,
+                          });
                         }}
                         className="w-full pl-8 pr-5 py-3 bg-black/40 border border-yellow-500/20 rounded-xl text-yellow-100 focus:outline-none focus:border-yellow-500/60 focus:ring-1 focus:ring-yellow-500/60 transition-all font-mono"
                       />
@@ -217,13 +269,22 @@ export function CreateGame() {
                   </div>
 
                   <div>
-                    <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">Big Blind</label>
+                    <label className="block text-yellow-500/60 text-[10px] font-bold uppercase tracking-widest mb-1.5">
+                      Big Blind
+                    </label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-500/40 font-bold">$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-yellow-500/40 font-bold">
+                        $
+                      </span>
                       <input
                         type="number"
                         value={settings.bigBlind}
-                        onChange={(e) => setSettings({ ...settings, bigBlind: parseInt(e.target.value) || 0 })}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bigBlind: parseInt(e.target.value) || 0,
+                          })
+                        }
                         className="w-full pl-8 pr-5 py-3 bg-black/40 border border-yellow-500/20 rounded-xl text-yellow-100 focus:outline-none focus:border-yellow-500/60 focus:ring-1 focus:ring-yellow-500/60 transition-all font-mono"
                       />
                     </div>
@@ -250,7 +311,7 @@ export function CreateGame() {
                   Creating...
                 </>
               ) : (
-                'Create Table'
+                "Create Table"
               )}
             </button>
           </div>

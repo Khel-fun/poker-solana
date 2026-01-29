@@ -177,7 +177,9 @@ export const useSolanaPoker = () => {
    */
   const startGameInstructionData = (
     gameId: bigint,
-    frontendAccount: PublicKey,
+    backendAccount: PublicKey,
+    smallBlindAmount: bigint,
+    bigBlindAmount: bigint,
   ): Buffer => {
     // Anchor discriminator for start_game
     const discriminator = Buffer.from([
@@ -186,7 +188,9 @@ export const useSolanaPoker = () => {
     return Buffer.concat([
       discriminator,
       writeU64LE(gameId),
-      Buffer.from(frontendAccount.toBuffer()),
+      Buffer.from(backendAccount.toBuffer()),
+      writeU64LE(smallBlindAmount),
+      writeU64LE(bigBlindAmount),
     ]);
   };
 
@@ -276,6 +280,24 @@ export const useSolanaPoker = () => {
       0x3d, 0x20, 0xdb, 0x4d, 0x5e, 0x08, 0x06, 0x98,
     ]);
     return discriminator;
+  };
+
+  /**
+   * Creates settle game instruction data
+   */
+  const settleGameInstructionData = (
+    winnerSeatIndex: number,
+    finalPot: bigint,
+  ): Buffer => {
+    // Anchor discriminator for settle_game
+    const discriminator = Buffer.from([
+      0x60, 0x36, 0x18, 0xbd, 0xef, 0xc6, 0x56, 0x1d,
+    ]);
+    return Buffer.concat([
+      discriminator,
+      Buffer.from([winnerSeatIndex]),
+      writeU64LE(finalPot),
+    ]);
   };
 
   /**
@@ -595,14 +617,20 @@ export const useSolanaPoker = () => {
    * Start a poker game
    */
   const startGame = useCallback(
-    async (tableAddress: string, gameId: bigint = BigInt(0)) => {
+    async (
+      tableAddress: string,
+      gameId: bigint = BigInt(0),
+      backendAccount?: PublicKey,
+      smallBlindAmount: bigint = BigInt(10000000),
+      bigBlindAmount: bigint = BigInt(20000000),
+    ) => {
       if (!publicKey) throw new Error("Wallet not connected");
 
       const tablePDA = new PublicKey(tableAddress);
       const gamePDA = await getGamePDA(tablePDA, gameId);
 
-      // Use the connected wallet as the frontend account for decryption access
-      const frontendAccount = publicKey;
+      // Use the connected wallet as the backend account if not provided
+      const backend = backendAccount || publicKey;
 
       const instruction = new TransactionInstruction({
         programId: POKER_PROGRAM_ID,
@@ -616,7 +644,12 @@ export const useSolanaPoker = () => {
             isWritable: false,
           },
         ],
-        data: startGameInstructionData(gameId, frontendAccount),
+        data: startGameInstructionData(
+          gameId,
+          backend,
+          smallBlindAmount,
+          bigBlindAmount,
+        ),
       });
 
       const transaction = new Transaction().add(instruction);
@@ -1248,6 +1281,138 @@ export const useSolanaPoker = () => {
     ],
   );
 
+  /**
+   * Settle the game and pay out the winner
+   */
+  const settleGame = useCallback(
+    async (winnerSeatIndex: number) => {
+      if (!publicKey) throw new Error("Wallet not connected");
+
+      // Get game state from store to access table info
+      const gameState = (window as any).__gameState;
+      if (!gameState?.tablePDA || !gameState?.tableId) {
+        throw new Error("Missing game state - table info not found");
+      }
+
+      console.log("🎮 Game state for settle:", {
+        tablePDA: gameState.tablePDA,
+        tableId: gameState.tableId,
+        winnerSeatIndex,
+        allPlayers: gameState.players?.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          seatIndex: p.seatIndex,
+          hasWallet: !!p.walletAddress,
+          walletAddress: p.walletAddress,
+        })),
+      });
+
+      const tablePDA = new PublicKey(gameState.tablePDA);
+      const gameId = BigInt(gameState.tableId);
+      const gamePDA = await getGamePDA(tablePDA, gameId);
+      const vaultPDA = await getVaultPDA(tablePDA);
+
+      // Find the winner player to get their wallet address
+      const winnerPlayer = gameState.players.find(
+        (p: any) => p.seatIndex === winnerSeatIndex,
+      );
+
+      if (!winnerPlayer) {
+        throw new Error(`No player found at seat index ${winnerSeatIndex}`);
+      }
+
+      if (!winnerPlayer.walletAddress) {
+        throw new Error(
+          `Winner wallet address not found for player ${winnerPlayer.name} at seat ${winnerSeatIndex}. ` +
+            `This player may have joined before wallet addresses were being tracked. ` +
+            `Please ensure all players rejoin the game with their wallets connected.`,
+        );
+      }
+
+      const winnerWallet = new PublicKey(winnerPlayer.walletAddress);
+      const winnerSeatPDA = await getPlayerSeatPDA(tablePDA, winnerWallet);
+
+      // Get final pot from game state
+      const finalPot = BigInt(gameState.pot || 0);
+
+      console.log("📋 Settling game with accounts:", {
+        table: tablePDA.toBase58(),
+        game: gamePDA.toBase58(),
+        winnerSeat: winnerSeatPDA.toBase58(),
+        winnerWallet: winnerWallet.toBase58(),
+        vault: vaultPDA.toBase58(),
+        admin: publicKey.toBase58(),
+        winnerSeatIndex,
+        finalPot: finalPot.toString(),
+      });
+
+      const instruction = new TransactionInstruction({
+        programId: POKER_PROGRAM_ID,
+        keys: [
+          { pubkey: tablePDA, isSigner: false, isWritable: true },
+          { pubkey: gamePDA, isSigner: false, isWritable: true },
+          { pubkey: winnerSeatPDA, isSigner: false, isWritable: true },
+          { pubkey: winnerWallet, isSigner: false, isWritable: true },
+          { pubkey: vaultPDA, isSigner: false, isWritable: true },
+          { pubkey: publicKey, isSigner: true, isWritable: true },
+          {
+            pubkey: SystemProgram.programId,
+            isSigner: false,
+            isWritable: false,
+          },
+        ],
+        data: settleGameInstructionData(winnerSeatIndex, finalPot),
+      });
+
+      const transaction = new Transaction().add(instruction);
+
+      const { blockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = publicKey;
+
+      try {
+        console.log("📝 Sending settle game transaction...");
+
+        const signature = await sendTransaction(transaction, connection, {
+          skipPreflight: false,
+          preflightCommitment: "confirmed",
+        });
+
+        console.log("📤 Transaction sent:", signature);
+        console.log(
+          `🔗 View on explorer: https://explorer.solana.com/tx/${signature}?cluster=devnet`,
+        );
+
+        await connection.confirmTransaction(
+          {
+            signature,
+            blockhash,
+            lastValidBlockHeight,
+          },
+          "confirmed",
+        );
+
+        console.log("✅ Game settled successfully!");
+        return signature;
+      } catch (error: any) {
+        console.error("❌ Settle game transaction failed:", error);
+        if (error.logs) {
+          console.error("📋 Transaction logs:", error.logs);
+        }
+        throw error;
+      }
+    },
+    [
+      publicKey,
+      connection,
+      sendTransaction,
+      getGamePDA,
+      getVaultPDA,
+      getPlayerSeatPDA,
+    ],
+  );
+
   return {
     createTable,
     joinTable,
@@ -1257,6 +1422,7 @@ export const useSolanaPoker = () => {
     advanceStage,
     postBlinds,
     playerAction,
+    settleGame,
     getMyCards,
     getCommunityCards,
     getTableData,

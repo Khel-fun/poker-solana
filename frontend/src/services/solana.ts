@@ -13,7 +13,7 @@ import {
   getSignatureFromTransaction,
   type Instruction,
   createKeyPairSignerFromBytes,
-  type KeyPairSigner,
+  type TransactionSigner,
   getProgramDerivedAddress,
   getAddressEncoder,
 } from "@solana/kit";
@@ -203,24 +203,37 @@ function joinTableInstructionData(buyIn: bigint): Uint8Array {
  */
 function startGameInstructionData(
   gameId: bigint,
-  frontendAccount: Address,
+  backendAccount: Address,
+  smallBlindAmount: bigint,
+  bigBlindAmount: bigint,
 ): Uint8Array {
   // Use the pre-calculated discriminator
   const discriminator = DISCRIMINATORS.START_GAME;
 
   const addressEncoder = getAddressEncoder();
-  const frontendBytes = addressEncoder.encode(frontendAccount);
+  const backendBytes = addressEncoder.encode(backendAccount);
 
-  const data = new Uint8Array(8 + 8 + 32);
+  const data = new Uint8Array(8 + 8 + 32 + 8 + 8);
+  let offset = 0;
 
   // Discriminator
-  data.set(discriminator, 0);
+  data.set(discriminator, offset);
+  offset += 8;
 
   // game_id: u64
-  writeU64LE(data, gameId, 8);
+  writeU64LE(data, gameId, offset);
+  offset += 8;
 
-  // frontend_account: Pubkey (32 bytes)
-  data.set(frontendBytes, 16);
+  // backend_account: Pubkey (32 bytes)
+  data.set(backendBytes, offset);
+  offset += 32;
+
+  // small_blind_amount: u64
+  writeU64LE(data, smallBlindAmount, offset);
+  offset += 8;
+
+  // big_blind_amount: u64
+  writeU64LE(data, bigBlindAmount, offset);
 
   return data;
 }
@@ -229,7 +242,7 @@ function startGameInstructionData(
  * Creates a new poker table on-chain
  */
 export async function createTable(
-  signer: KeyPairSigner,
+  signer: TransactionSigner,
   tableId: bigint,
   maxPlayers: number,
   buyInMin: bigint,
@@ -290,7 +303,7 @@ export async function createTable(
  * Join an existing poker table
  */
 export async function joinTable(
-  signer: KeyPairSigner,
+  signer: TransactionSigner,
   tableAddress: Address,
   buyIn: bigint,
 ): Promise<string> {
@@ -343,16 +356,15 @@ export async function joinTable(
  * Start a new game at a poker table
  */
 export async function startGame(
-  signer: KeyPairSigner,
+  signer: TransactionSigner,
   tableAddress: Address,
   gameId: bigint,
-  frontendAccount?: Address,
+  backendAccount: Address,
+  smallBlindAmount: bigint,
+  bigBlindAmount: bigint,
 ): Promise<{ signature: string; gameAddress: string }> {
   // Derive game PDA
   const [gamePDA] = await getGamePDA(tableAddress, gameId);
-
-  // Use signer address as frontend account if not provided
-  const frontend = frontendAccount || signer.address;
 
   // Get latest blockhash
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
@@ -366,7 +378,12 @@ export async function startGame(
       { address: signer.address, role: 3 /* AccountRole.WRITABLE_SIGNER */ },
       { address: SYSTEM_PROGRAM_ID, role: 0 /* AccountRole.READONLY */ },
     ],
-    data: startGameInstructionData(gameId, frontend),
+    data: startGameInstructionData(
+      gameId,
+      backendAccount,
+      smallBlindAmount,
+      bigBlindAmount,
+    ),
   };
 
   // Build transaction using pipe
@@ -397,79 +414,46 @@ export async function startGame(
 /**
  * Creates a settle game instruction data
  */
-function settleGameInstructionData(winnerSeatIndex: number): Uint8Array {
+function settleGameInstructionData(
+  winnerSeatIndex: number,
+  finalPot: bigint,
+): Uint8Array {
   // Use the pre-calculated discriminator
   const discriminator = DISCRIMINATORS.SETTLE_GAME;
 
-  const data = new Uint8Array(8 + 1);
+  const data = new Uint8Array(8 + 1 + 8);
+  let offset = 0;
 
   // Discriminator
-  data.set(discriminator, 0);
+  data.set(discriminator, offset);
+  offset += 8;
 
   // winner_seat_index: u8
-  data[8] = winnerSeatIndex;
+  data[offset] = winnerSeatIndex;
+  offset += 1;
+
+  // final_pot: u64
+  writeU64LE(data, finalPot, offset);
 
   return data;
 }
 
 /**
  * Settle the game and pay out the winner
+ * Note: This function is no longer used - settle game functionality has been moved to useSolanaPoker hook
+ * Keeping for reference, but should be removed in cleanup
  */
 export async function settleGame(
-  signer: KeyPairSigner,
+  signer: TransactionSigner,
   tableAddress: Address,
   gameAddress: Address,
   winnerSeatIndex: number,
   winnerWalletAddress: Address,
+  finalPot: bigint,
 ): Promise<string> {
-  // Derive PDAs
-  const [vaultPDA] = await getVaultPDA(tableAddress);
-  const [winnerSeatPDA] = await getPlayerSeatPDA(
-    tableAddress,
-    winnerWalletAddress,
+  throw new Error(
+    "This function is deprecated. Use settleGame from useSolanaPoker hook instead.",
   );
-
-  // Get latest blockhash
-  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
-
-  // Create instruction
-  const settleGameInstruction: Instruction = {
-    programAddress: POKER_PROGRAM_ID,
-    accounts: [
-      { address: tableAddress, role: 1 /* AccountRole.WRITABLE */ },
-      { address: gameAddress, role: 1 /* AccountRole.WRITABLE */ },
-      { address: winnerSeatPDA, role: 0 /* AccountRole.READONLY */ },
-      { address: winnerWalletAddress, role: 1 /* AccountRole.WRITABLE */ },
-      { address: vaultPDA, role: 1 /* AccountRole.WRITABLE */ },
-      { address: signer.address, role: 3 /* AccountRole.WRITABLE_SIGNER */ },
-      { address: SYSTEM_PROGRAM_ID, role: 0 /* AccountRole.READONLY */ },
-    ],
-    data: settleGameInstructionData(winnerSeatIndex),
-  };
-
-  // Build transaction using pipe
-  const transactionMessage = pipe(
-    createTransactionMessage({ version: 0 }),
-    (tx: any) => setTransactionMessageFeePayerSigner(signer, tx),
-    (tx: any) =>
-      setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-    (tx: any) =>
-      appendTransactionMessageInstructions([settleGameInstruction], tx),
-  );
-
-  // Sign transaction
-  const signedTransaction = await signTransactionMessageWithSigners(
-    transactionMessage as any,
-  );
-
-  // Send and confirm
-  await sendAndConfirmTransaction(signedTransaction as any, {
-    commitment: "confirmed",
-  });
-
-  // Get signature
-  const signature = getSignatureFromTransaction(signedTransaction);
-  return signature;
 }
 
 /**
@@ -477,9 +461,9 @@ export async function settleGame(
  */
 export async function createKeypairFromBytes(
   bytes: Uint8Array,
-): Promise<KeyPairSigner> {
+): Promise<TransactionSigner> {
   return await createKeyPairSignerFromBytes(bytes);
 }
 
 // Export types for convenience
-export type { KeyPairSigner, Address };
+export type { TransactionSigner, Address };

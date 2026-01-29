@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useGameStore } from "../stores/gameStore";
 import { ArrowLeft, Users, Play, Loader2, Crown } from "lucide-react";
 import { useSolanaPoker } from "../hooks/useSolanaPoker";
@@ -8,6 +9,7 @@ import { Navbar } from "../components/layout/Navbar";
 export function Lobby() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
+  const { publicKey } = useWallet();
   const {
     playerId,
     gameState,
@@ -51,9 +53,9 @@ export function Lobby() {
     });
     if (isConnected && gameId && !gameState) {
       console.log("[Lobby] Joining game:", gameId);
-      joinGame(gameId);
+      joinGame(gameId, publicKey?.toBase58());
     }
-  }, [isConnected, gameId, gameState, joinGame]);
+  }, [isConnected, gameId, gameState, publicKey, joinGame]);
 
   // Manual blockchain join handler
   const handleJoinBlockchainTable = async () => {
@@ -135,9 +137,16 @@ export function Lobby() {
       // Use the stored tableId from game state
       const blockchainGameId = BigInt(gameState.tableId);
 
+      // Get blind amounts from game settings
+      const smallBlindAmount = BigInt(gameState.settings.smallBlind);
+      const bigBlindAmount = BigInt(gameState.settings.bigBlind);
+
       const result = await startGameOnChain(
         gameState.tablePDA,
         blockchainGameId,
+        undefined, // backendAccount - will use wallet as default
+        smallBlindAmount,
+        bigBlindAmount,
       );
       console.log("Game started on blockchain:", result);
 

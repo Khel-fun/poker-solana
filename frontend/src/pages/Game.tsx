@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useGameStore } from "../stores/gameStore";
 import { PokerTable } from "../components/game/PokerTable";
 import { PlayingCard } from "../components/game/PlayingCard";
@@ -10,7 +11,8 @@ import { useSolanaPoker } from "../hooks/useSolanaPoker";
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
-  const { walletAddress: connectedWallet } = useSolanaPoker();
+  const { publicKey } = useWallet();
+  const { settleGame: settleGameOnBlockchain } = useSolanaPoker();
   const {
     playerId,
     gameState,
@@ -26,7 +28,6 @@ export function Game() {
     joinGame,
     performAction,
     settleGameOnChain,
-    clearWinners,
     clearError,
   } = useGameStore();
 
@@ -43,9 +44,9 @@ export function Game() {
 
   useEffect(() => {
     if (isConnected && gameId && !gameState) {
-      joinGame(gameId);
+      joinGame(gameId, publicKey?.toBase58());
     }
-  }, [isConnected, gameId, gameState, joinGame]);
+  }, [isConnected, gameId, gameState, publicKey, joinGame]);
 
   useEffect(() => {
     if (gameState?.status === "waiting") {
@@ -53,10 +54,29 @@ export function Game() {
     }
   }, [gameState?.status, gameId, navigate]);
 
+  // Expose game state globally for useSolanaPoker hook
+  useEffect(() => {
+    if (gameState) {
+      (window as any).__gameState = gameState;
+    }
+  }, [gameState]);
+
   const handleSettleGame = async () => {
     if (!winners || winners.length === 0 || !gameState) {
       return;
     }
+
+    console.log("🎯 Settling game - Current game state:", {
+      gameId: gameState.id,
+      players: gameState.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        seatIndex: p.seatIndex,
+        walletAddress: p.walletAddress,
+        playerSeatAddress: p.playerSeatAddress,
+      })),
+      winners,
+    });
 
     // For now, we'll settle with the first winner
     // In a real implementation, you might need to handle multiple winners differently
@@ -71,27 +91,16 @@ export function Game() {
       return;
     }
 
-    // If the winner doesn't have a wallet address, we need to handle this
-    let winnerWalletAddress = winnerPlayer.walletAddress;
-
-    if (!winnerWalletAddress) {
-      // If the winner is the current player, use their connected wallet
-      if (winnerPlayer.id === playerId) {
-        winnerWalletAddress = connectedWallet;
-      }
-
-      // If we still don't have a wallet address, show an error
-      if (!winnerWalletAddress) {
-        clearError();
-        useGameStore.setState({
-          error: `Winner ${winnerPlayer.name} needs to connect their wallet to receive payout`,
-        });
-        return;
-      }
-    }
+    console.log("🏆 Winner details:", {
+      id: winnerPlayer.id,
+      name: winnerPlayer.name,
+      seatIndex: winnerPlayer.seatIndex,
+      walletAddress: winnerPlayer.walletAddress,
+      playerSeatAddress: winnerPlayer.playerSeatAddress,
+    });
 
     try {
-      await settleGameOnChain(winnerPlayer.seatIndex, winnerWalletAddress);
+      await settleGameOnChain(winnerPlayer.seatIndex, settleGameOnBlockchain);
     } catch (error) {
       console.error("Failed to settle game:", error);
     }
