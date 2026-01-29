@@ -124,7 +124,7 @@ export function PlayerSeat({
 
         {/* Position indicators */}
         {(isDealer || isSmallBlind || isBigBlind) && (
-          <div className="absolute top-2 right-2 flex gap-0.5 z-50">
+          <div className="absolute top-2 right-2 flex gap-0.5 z-40">
             {isDealer && (
               <span className="w-6 h-6 bg-white text-black text-xs font-bold rounded-full flex items-center justify-center shadow-md">
                 D

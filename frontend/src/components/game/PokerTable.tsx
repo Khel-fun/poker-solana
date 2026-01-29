@@ -84,7 +84,7 @@ export function PokerTable({
         {/* Table & Dealer Wrapper - Defines the scale for both */}
         <div className="relative w-[95vw] md:w-[85vw] max-w-[1400px] aspect-[1.8/1]">
           {/* Dealer - Positioned relative to the wrapper (table size) */}
-          <div className="absolute -top-[20%] left-1/2 -translate-x-1/2 w-[30%] h-[40%] flex justify-center items-end z-50">
+          <div className="absolute -top-[20%] left-1/2 -translate-x-1/2 w-[30%] h-[40%] flex justify-center items-end z-30">
             <img
               src="/dealer.png"
               alt="Dealer"
@@ -185,7 +185,7 @@ export function PokerTable({
         </div>
         {/* Action panel - positioned at bottom right corner */}
         {isMyTurn && currentPlayer && !currentPlayer.folded && (
-          <div className="absolute bottom-6 right-6 z-50">
+          <div className="absolute bottom-6 right-6 z-30">
             <ActionPanel
               validActions={validActions}
               currentBet={gameState.currentBet}

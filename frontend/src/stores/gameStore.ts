@@ -194,6 +194,16 @@ export const useGameStore = create<GameStore>()(
             playerSeatAddress,
             hasSocket: !!socket,
           });
+
+          if (!walletAddress) {
+            console.error(
+              "❌ [Store] Wallet address is missing! Player will not be able to receive winnings.",
+            );
+            console.error(
+              "Make sure the wallet is connected before joining the game.",
+            );
+          }
+
           if (!socket || !playerId) {
             console.error("[Store] Cannot join - missing socket or playerId");
             return;

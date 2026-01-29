@@ -104,11 +104,16 @@ export function CreateGame() {
       connect();
 
       setTimeout(() => {
-        joinGame(
-          result.gameId,
-          publicKey?.toBase58(),
-          playerSeatPDA.toBase58(),
+        if (!publicKey) {
+          console.error("❌ Wallet not connected after creating game");
+          setError("Wallet disconnected. Please reconnect and try again.");
+          return;
+        }
+        console.log(
+          "✅ Joining created game with wallet:",
+          publicKey.toBase58(),
         );
+        joinGame(result.gameId, publicKey.toBase58(), playerSeatPDA.toBase58());
         navigate(`/lobby/${result.gameId}`);
       }, 100);
     } catch (err: any) {

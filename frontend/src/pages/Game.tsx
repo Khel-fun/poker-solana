@@ -44,7 +44,15 @@ export function Game() {
 
   useEffect(() => {
     if (isConnected && gameId && !gameState) {
-      joinGame(gameId, publicKey?.toBase58());
+      if (!publicKey) {
+        console.warn("⚠️ Wallet not connected - cannot join game");
+        useGameStore.setState({
+          error: "Please connect your wallet to join the game",
+        });
+        return;
+      }
+      console.log("✅ Joining game with wallet:", publicKey.toBase58());
+      joinGame(gameId, publicKey.toBase58());
     }
   }, [isConnected, gameId, gameState, publicKey, joinGame]);
 
@@ -101,6 +109,7 @@ export function Game() {
 
     try {
       await settleGameOnChain(winnerPlayer.seatIndex, settleGameOnBlockchain);
+      navigate("/");
     } catch (error) {
       console.error("Failed to settle game:", error);
     }

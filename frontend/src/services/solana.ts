@@ -27,7 +27,7 @@ function writeU64LE(buffer: Uint8Array, value: bigint, offset: number): void {
 
 // Program ID from the deployed Solana Poker contract
 export const POKER_PROGRAM_ID = address(
-  "2fS8A3rSY5zSJyc5kaCKhAhwjpLiRPhth1bTwNWmGNcm",
+  "7EZ1zWNMjuHh62dikk9TAo478VMzAiLkvg8S7Vm85T7s",
 );
 
 // Inco Lightning Program ID

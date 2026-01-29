@@ -50,10 +50,18 @@ export function Lobby() {
       isConnected,
       gameId,
       hasGameState: !!gameState,
+      hasWallet: !!publicKey,
     });
     if (isConnected && gameId && !gameState) {
-      console.log("[Lobby] Joining game:", gameId);
-      joinGame(gameId, publicKey?.toBase58());
+      if (!publicKey) {
+        console.warn("⚠️ Wallet not connected - cannot join game");
+        useGameStore.setState({
+          error: "Please connect your wallet to join the game",
+        });
+        return;
+      }
+      console.log("[Lobby] Joining game with wallet:", publicKey.toBase58());
+      joinGame(gameId, publicKey.toBase58());
     }
   }, [isConnected, gameId, gameState, publicKey, joinGame]);
 
@@ -190,6 +198,26 @@ export function Lobby() {
       <div className="min-h-screen pt-24 pb-12 bg-[url('/bg.png')] bg-cover bg-center relative overflow-y-auto w-full">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] -z-10"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex flex-col">
+          {/* Wallet Connection Warning */}
+          {!publicKey && (
+            <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3">
+              <div className="text-red-400 text-sm flex-1">
+                <strong className="font-bold">⚠️ Wallet Not Connected!</strong>
+                <p className="mt-1">
+                  You must connect your wallet to participate in blockchain
+                  transactions and receive winnings.
+                </p>
+              </div>
+              <div className="flex-shrink-0">
+                <div className="bg-red-500/20 border border-red-500/40 px-4 py-2 rounded-lg">
+                  <span className="text-red-300 text-xs font-bold uppercase">
+                    Connect Wallet
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={handleLeave}
             className="flex items-center gap-2 text-yellow-500/60 hover:text-yellow-400 mb-8 transition-colors group px-4 py-2 border border-transparent hover:border-yellow-500/20 rounded-lg hover:bg-yellow-500/5 w-fit"

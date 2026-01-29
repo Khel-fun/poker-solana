@@ -15,7 +15,7 @@ import {
 
 // Program ID from the deployed Solana Poker contract
 const POKER_PROGRAM_ID = new PublicKey(
-  "2fS8A3rSY5zSJyc5kaCKhAhwjpLiRPhth1bTwNWmGNcm",
+  "7EZ1zWNMjuHh62dikk9TAo478VMzAiLkvg8S7Vm85T7s",
 );
 
 // Inco Lightning Program ID
@@ -1113,11 +1113,6 @@ export const useSolanaPoker = () => {
       // Collect player seat accounts (need to reset bets)
       const tableAccount = await connection.getAccountInfo(tablePDA);
       if (!tableAccount) throw new Error("Table account not found");
-
-      // TODO: Derive and include player seat PDAs in remainingAccounts
-      // The Rust contract expects these to reset current_bet and has_acted
-      // For now, we skip this - admin should provide seats manually if needed
-      // const playerCount = tableAccount.data.readUInt8(8 + 32 + 8 + 1 + 8 + 8 + 8);
 
       const instruction = new TransactionInstruction({
         programId: POKER_PROGRAM_ID,
