@@ -159,7 +159,7 @@ export function CreateGame() {
                       onChange={(e) => setSettings({ ...settings, maxPlayers: parseInt(e.target.value) })}
                       className="w-full px-4 py-3 bg-black/40 border border-yellow-500/20 rounded-xl text-yellow-100 focus:outline-none focus:border-yellow-500/60 focus:ring-1 focus:ring-yellow-500/60 transition-all appearance-none cursor-pointer"
                     >
-                      {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                      {[2, 3, 4, 5].map((n) => (
                         <option key={n} value={n} className="bg-gray-900">{n} Players</option>
                       ))}
                     </select>

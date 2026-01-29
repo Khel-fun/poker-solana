@@ -59,6 +59,8 @@ export function Game() {
   }
 
   return (
+    <>
+    <Navbar showBackButton backTo="/games" />
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
       {/* Winners modal */}
       {winners && winners.length > 0 && (
@@ -158,5 +160,6 @@ export function Game() {
         />
       </div>
     </div>
+    </>
   );
 }

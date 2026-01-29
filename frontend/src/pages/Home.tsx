@@ -50,7 +50,7 @@ export function Home() {
       </div>
         <div className="absolute inset-0 bg-black/40 bg-gradient-to-br from-black/80 via-transparent to-black/80"></div>
 
-        <div className="relative z-10 w-full max-w-lg">
+        <div className="relative z-10 w-full max-w-xl">
           <div className="text-center mb-12 transform hover:scale-105 transition-transform duration-500">
             <div className="flex items-center justify-center gap-4 mb-6">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-yellow-600 to-yellow-300 p-1 shadow-[0_0_30px_rgba(234,179,8,0.4)]">

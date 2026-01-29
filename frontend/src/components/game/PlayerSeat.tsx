@@ -40,12 +40,13 @@ export function PlayerSeat({
   // Animate timer circle with GSAP
   useEffect(() => {
     if (isCurrentTurn && progressRef.current) {
-      const circumference = 2 * Math.PI * 45; // r=45
+      const circumference = 2 * Math.PI * 64; // r=45
 
       // Start with full circle (offset 0) and animate to empty (offset = circumference)
-      gsap.set(progressRef.current, { strokeDashoffset: 0 });
+      gsap.set(progressRef.current, { strokeDashoffset: 0, strokeWidth: 8 });
       gsap.to(progressRef.current, {
         strokeDashoffset: circumference,
+        strokeWidth: 8,
         duration: turnTime,
         ease: "linear",
         overwrite: true,
@@ -53,7 +54,7 @@ export function PlayerSeat({
     } else if (progressRef.current) {
       // Kill animation and reset when not current turn
       gsap.killTweensOf(progressRef.current);
-      gsap.set(progressRef.current, { strokeDashoffset: 2 * Math.PI * 45 });
+      gsap.set(progressRef.current, { strokeDashoffset: 2 * Math.PI * 64});
     }
   }, [isCurrentTurn, turnTime]);
 
@@ -100,9 +101,9 @@ export function PlayerSeat({
               r="64"
               fill="none"
               stroke="rgba(251, 191, 36, 0.4)"
-              strokeWidth="8"
-              strokeDasharray={`${2 * Math.PI * 45}`}
-              strokeDashoffset="0"
+              // strokeWidth="8"
+              // strokeDasharray={`${2 * Math.PI * 64}`}
+              // strokeDashoffset="0"
               ref={progressRef}
               className="drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]"
             />
@@ -111,15 +112,15 @@ export function PlayerSeat({
 
         <div
           className={clsx(
-            "w-32 h-32 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg relative z-10",
+            `w-32 h-32 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-lg relative z-10 overflow-hidden`,
             isCurrentPlayer
-              ? "bg-gradient-to-br from-blue-500 to-blue-700 border-4 border-blue-900"
-              : "bg-gradient-to-br from-gray-600 to-gray-800",
+              ? "border-4 border-blue-900"
+              : "border-4 border-gray-500",
             isCurrentTurn &&
               "ring-4 ring-yellow-400 shadow-[0_0_20px_rgba(251,191,36,0.6)]",
           )}
         >
-          {player.name.charAt(0).toUpperCase()}
+          <img src={`https://api.dicebear.com/9.x/initials/svg?seed=${player.name}`} alt="Avatar" />
         </div>
 
         {/* Position indicators */}
@@ -143,26 +144,34 @@ export function PlayerSeat({
           </div>
         )}
 
-        <div className="flex mt-2 absolute bottom-0 z-20 left-1/2 -translate-x-1/2">
-          {displayCards.length > 0 ? (
-            displayCards.map((card, i) => {
-              const rotdeg = 20 * (-1) ** (i + 1);
+        <div className="w-32 h-32 rounded-full overflow-hidden absolute top-0 z-20 left-1/2 -translate-x-1/2">
+          <div className="flex mt-2 absolute -bottom-4 z-20 left-1/2 -translate-x-1/2">
+            {displayCards.length > 0 ? (
+              displayCards.map((card, i) => {
+                const rotdeg = 20 * (-1) ** (i + 1);
+                const translateX = 10 * (-1) ** (i + 2);
               return (
                 <PlayingCard
                   key={i}
                   card={showCards || isCurrentPlayer ? card : undefined}
                   hidden={!showCards && !isCurrentPlayer}
                   size="md"
-                  style={{ transform: `rotate(${rotdeg}deg)` }}
+                  style={{ transform: `rotate(${rotdeg}deg) translateX(${translateX}px)` }}
                 />
               );
             })
           ) : (
             <>
-              {/* <PlayingCard hidden size="sm" />
-              <PlayingCard hidden size="sm" /> */}
+            {[0,1].map((i) => {
+              const rotdeg = 20 * (-1) ** (i + 1);
+              const translateX = 10 * (-1) ** (i + 2);
+              return(
+                <PlayingCard hidden size="md" style={{ transform: `rotate(${rotdeg}deg) translateX(${translateX}px)` }}/>
+              )
+            })}
             </>
           )}
+        </div>
         </div>
 
         {/* Current bet badge */}
