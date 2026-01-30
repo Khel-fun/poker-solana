@@ -1,8 +1,10 @@
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { GameState } from "../../../../shared/types";
 import type { PlayerAction, ActionType } from "../../../../shared/types";
 import { PlayerSeat } from "./PlayerSeat";
 import { PlayingCard } from "./PlayingCard";
 import { ActionPanel } from "./ActionPanel";
+import { CoinAnimation } from "./CoinAnimation";
 import { useCardDecryption } from "../../hooks/useCardDecryption";
 import clsx from "clsx";
 
@@ -16,6 +18,14 @@ interface PokerTableProps {
   validActions: ActionType[];
   timeRemaining: number;
   onAction: (action: PlayerAction) => void;
+}
+
+interface CoinAnimationState {
+  id: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
 }
 
 const seatPositions = [
@@ -48,6 +58,10 @@ export function PokerTable({
 }: PokerTableProps) {
   const { communityCards, decryptCommunity, isDecrypting, error } =
     useCardDecryption();
+  const [coinAnimations, setCoinAnimations] = useState<CoinAnimationState[]>([]);
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
+  const potRef = useRef<HTMLDivElement>(null);
+  const prevPotRef = useRef<number>(gameState.pot);
   const sortedPlayers = [...gameState.players].sort((a, b) => {
     if (a.id === currentPlayerId) return -1;
     if (b.id === currentPlayerId) return 1;
@@ -78,11 +92,66 @@ export function PokerTable({
     await decryptCommunity(gameAddress, currentStage);
   };
 
+  const removeCoinAnimation = useCallback((id: string) => {
+    setCoinAnimations((prev) => prev.filter((anim) => anim.id !== id));
+  }, []);
+
+  const triggerCoinAnimation = useCallback((playerId: string) => {
+    if (!tableWrapperRef.current || !potRef.current) return;
+
+    const playerIndex = sortedPlayers.findIndex((p) => p.id === playerId);
+    if (playerIndex === -1) return;
+
+    const tableRect = tableWrapperRef.current.getBoundingClientRect();
+
+    const seatPosition = seatPositions[playerIndex];
+    let startX = 0;
+    let startY = 0;
+
+    if (seatPosition.includes('bottom') && seatPosition.includes('left-1/2')) {
+      startX = tableRect.width / 2;
+      startY = tableRect.height - 50;
+    } else if (seatPosition.includes('bottom-24 left-24')) {
+      startX = 100;
+      startY = tableRect.height - 100;
+    } else if (seatPosition.includes('top-24 left-24')) {
+      startX = 100;
+      startY = 100;
+    } else if (seatPosition.includes('top-24 right-24')) {
+      startX = tableRect.width - 100;
+      startY = 100;
+    } else if (seatPosition.includes('bottom-24 right-24')) {
+      startX = tableRect.width - 100;
+      startY = tableRect.height - 100;
+    }
+
+    const endX = tableRect.width / 2;
+    const endY = tableRect.height / 2;
+
+    const animationId = `${playerId}-${Date.now()}`;
+    setCoinAnimations((prev) => [
+      ...prev,
+      { id: animationId, startX, startY, endX, endY },
+    ]);
+  }, [sortedPlayers]);
+
+  useEffect(() => {
+    if (gameState.pot > prevPotRef.current) {
+      const lastActedPlayer = gameState.players.find(
+        (p) => p.bet > 0 || p.totalBet > 0
+      );
+      if (lastActedPlayer) {
+        triggerCoinAnimation(lastActedPlayer.id);
+      }
+    }
+    prevPotRef.current = gameState.pot;
+  }, [gameState.pot, gameState.players, triggerCoinAnimation]);
+
   return (
     <div className="min-h-screen bg-[url('/background.jpg')] bg-cover bg-center">
       <div className="relative w-full h-[calc(100vh)] flex items-center justify-center overflow-hidden perspective-[1000px] pt-28">
         {/* Table & Dealer Wrapper - Defines the scale for both */}
-        <div className="relative w-[95vw] md:w-[85vw] max-w-[1400px] aspect-[1.8/1]">
+        <div ref={tableWrapperRef} className="relative w-[95vw] md:w-[85vw] max-w-[1400px] aspect-[1.8/1]">
           {/* Dealer - Positioned relative to the wrapper (table size) */}
           <div className="absolute -top-[20%] left-1/2 -translate-x-1/2 w-[30%] h-[40%] flex justify-center items-end z-50">
             <img
@@ -141,7 +210,7 @@ export function PokerTable({
               {error && <p className="text-red-400 text-xs mb-2">{error}</p>}
 
               {/* Pot */}
-              <div className="bg-black/30 px-6 py-2 rounded-full">
+              <div ref={potRef} className="bg-black/30 px-6 py-2 rounded-full">
                 <span className="text-yellow-400 font-bold text-xl">
                   Pot: ${gameState.pot.toLocaleString()}
                 </span>
@@ -182,6 +251,19 @@ export function PokerTable({
               </div>
             ))}
           </div>
+
+          {/* Coin Animations */}
+          {coinAnimations.map((anim) => (
+            <CoinAnimation
+              key={anim.id}
+              id={anim.id}
+              startX={anim.startX}
+              startY={anim.startY}
+              endX={anim.endX}
+              endY={anim.endY}
+              onComplete={removeCoinAnimation}
+            />
+          ))}
         </div>
         {/* Action panel - positioned at bottom right corner */}
         {isMyTurn && currentPlayer && !currentPlayer.folded && (
