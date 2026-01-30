@@ -181,6 +181,9 @@ export interface ServerToClientEvents {
 export interface CreateGameResponse {
   gameId: string;
   inviteCode: string;
+  tablePDA?: string;
+  tableId?: string;
+  backendPublicKey?: string;
 }
 
 export interface CreateGameRequest {

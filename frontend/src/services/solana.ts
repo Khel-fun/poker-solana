@@ -146,6 +146,7 @@ function createTableInstructionData(
   buyInMin: bigint,
   buyInMax: bigint,
   smallBlind: bigint,
+  backendAccount: Address,
 ): Uint8Array {
   // Anchor discriminator for create_table
   // You may need to update this discriminator based on your actual IDL
@@ -153,7 +154,7 @@ function createTableInstructionData(
     0xd6, 0x8e, 0x83, 0xfa, 0xf2, 0x53, 0x87, 0xb9,
   ]);
 
-  const data = new Uint8Array(8 + 8 + 1 + 8 + 8 + 8);
+  const data = new Uint8Array(8 + 8 + 1 + 8 + 8 + 8 + 32);
   let offset = 0;
 
   // Discriminator
@@ -178,6 +179,11 @@ function createTableInstructionData(
 
   // small_blind: u64
   writeU64LE(data, smallBlind, offset);
+  offset += 8;
+
+  // backend_account: Pubkey (32 bytes)
+  const addressEncoder = getAddressEncoder();
+  data.set(addressEncoder.encode(backendAccount), offset);
 
   return data;
 }
@@ -208,7 +214,9 @@ function joinTableInstructionData(buyIn: bigint): Uint8Array {
  */
 function startGameInstructionData(
   gameId: bigint,
-  frontendAccount: Address,
+  backendAccount: Address,
+  smallBlindAmount: bigint,
+  bigBlindAmount: bigint,
 ): Uint8Array {
   // Anchor discriminator for start_game
   const discriminator = new Uint8Array([
@@ -216,9 +224,9 @@ function startGameInstructionData(
   ]);
 
   const addressEncoder = getAddressEncoder();
-  const frontendBytes = addressEncoder.encode(frontendAccount);
+  const backendBytes = addressEncoder.encode(backendAccount);
 
-  const data = new Uint8Array(8 + 8 + 32);
+  const data = new Uint8Array(8 + 8 + 32 + 8 + 8);
 
   // Discriminator
   data.set(discriminator, 0);
@@ -226,8 +234,14 @@ function startGameInstructionData(
   // game_id: u64
   writeU64LE(data, gameId, 8);
 
-  // frontend_account: Pubkey (32 bytes)
-  data.set(frontendBytes, 16);
+  // backend_account: Pubkey (32 bytes)
+  data.set(backendBytes, 16);
+
+  // small_blind_amount: u64
+  writeU64LE(data, smallBlindAmount, 48);
+
+  // big_blind_amount: u64
+  writeU64LE(data, bigBlindAmount, 56);
 
   return data;
 }
@@ -242,6 +256,7 @@ export async function createTable(
   buyInMin: bigint,
   buyInMax: bigint,
   smallBlind: bigint,
+  backendAccount: Address,
 ): Promise<string> {
   // Derive PDAs
   const [tablePDA] = await getTablePDA(signer.address, tableId);
@@ -265,6 +280,7 @@ export async function createTable(
       buyInMin,
       buyInMax,
       smallBlind,
+      backendAccount,
     ),
   };
 
@@ -353,13 +369,12 @@ export async function startGame(
   signer: KeyPairSigner,
   tableAddress: Address,
   gameId: bigint,
-  frontendAccount?: Address,
+  backendAccount: Address,
+  smallBlindAmount: bigint,
+  bigBlindAmount: bigint,
 ): Promise<string> {
   // Derive game PDA
   const [gamePDA] = await getGamePDA(tableAddress, gameId);
-
-  // Use signer address as frontend account if not provided
-  const frontend = frontendAccount || signer.address;
 
   // Get latest blockhash
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
@@ -373,7 +388,12 @@ export async function startGame(
       { address: signer.address, role: 3 /* AccountRole.WRITABLE_SIGNER */ },
       { address: SYSTEM_PROGRAM_ID, role: 0 /* AccountRole.READONLY */ },
     ],
-    data: startGameInstructionData(gameId, frontend),
+    data: startGameInstructionData(
+      gameId,
+      backendAccount,
+      smallBlindAmount,
+      bigBlindAmount,
+    ),
   };
 
   // Build transaction using pipe

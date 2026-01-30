@@ -15,7 +15,7 @@ import {
 
 // Program ID from the deployed Solana Poker contract
 const POKER_PROGRAM_ID = new PublicKey(
-  "2fS8A3rSY5zSJyc5kaCKhAhwjpLiRPhth1bTwNWmGNcm",
+  "7EZ1zWNMjuHh62dikk9TAo478VMzAiLkvg8S7Vm85T7s",
 );
 
 // Inco Lightning Program ID
@@ -143,6 +143,7 @@ export const useSolanaPoker = () => {
     buyInMin: bigint,
     buyInMax: bigint,
     smallBlind: bigint,
+    backendAccount: PublicKey,
   ): Buffer => {
     // Anchor discriminator for create_table (sha256("global:create_table")[0..8])
     const discriminator = Buffer.from([
@@ -156,6 +157,7 @@ export const useSolanaPoker = () => {
       writeU64LE(buyInMin),
       writeU64LE(buyInMax),
       writeU64LE(smallBlind),
+      Buffer.from(backendAccount.toBuffer()),
     ]);
 
     return data;
@@ -177,7 +179,9 @@ export const useSolanaPoker = () => {
    */
   const startGameInstructionData = (
     gameId: bigint,
-    frontendAccount: PublicKey,
+    backendAccount: PublicKey,
+    smallBlindAmount: bigint,
+    bigBlindAmount: bigint,
   ): Buffer => {
     // Anchor discriminator for start_game
     const discriminator = Buffer.from([
@@ -186,7 +190,9 @@ export const useSolanaPoker = () => {
     return Buffer.concat([
       discriminator,
       writeU64LE(gameId),
-      Buffer.from(frontendAccount.toBuffer()),
+      Buffer.from(backendAccount.toBuffer()),
+      writeU64LE(smallBlindAmount),
+      writeU64LE(bigBlindAmount),
     ]);
   };
 
@@ -288,6 +294,7 @@ export const useSolanaPoker = () => {
       buyInMin: bigint,
       buyInMax: bigint,
       smallBlind: bigint,
+      backendAccount: PublicKey,
     ) => {
       if (!publicKey) throw new Error("Wallet not connected");
 
@@ -303,6 +310,7 @@ export const useSolanaPoker = () => {
         buyInMin: buyInMin.toString(),
         buyInMax: buyInMax.toString(),
         smallBlind: smallBlind.toString(),
+        backend: backendAccount.toBase58(),
       });
 
       const instruction = new TransactionInstruction({
@@ -323,6 +331,7 @@ export const useSolanaPoker = () => {
           buyInMin,
           buyInMax,
           smallBlind,
+          backendAccount,
         ),
       });
 
@@ -595,14 +604,21 @@ export const useSolanaPoker = () => {
    * Start a poker game
    */
   const startGame = useCallback(
-    async (tableAddress: string, gameId: bigint = BigInt(0)) => {
+    async (
+      tableAddress: string,
+      gameId: bigint,
+      smallBlindAmount: bigint,
+      bigBlindAmount: bigint,
+      backendAccount: PublicKey,
+    ) => {
       if (!publicKey) throw new Error("Wallet not connected");
+
+      if (!publicKey.equals(backendAccount)) {
+        throw new Error("Only backend can start the game on-chain");
+      }
 
       const tablePDA = new PublicKey(tableAddress);
       const gamePDA = await getGamePDA(tablePDA, gameId);
-
-      // Use the connected wallet as the frontend account for decryption access
-      const frontendAccount = publicKey;
 
       const instruction = new TransactionInstruction({
         programId: POKER_PROGRAM_ID,
@@ -616,7 +632,12 @@ export const useSolanaPoker = () => {
             isWritable: false,
           },
         ],
-        data: startGameInstructionData(gameId, frontendAccount),
+        data: startGameInstructionData(
+          gameId,
+          backendAccount,
+          smallBlindAmount,
+          bigBlindAmount,
+        ),
       });
 
       const transaction = new Transaction().add(instruction);

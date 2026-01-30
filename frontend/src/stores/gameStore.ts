@@ -169,8 +169,22 @@ export const useGameStore = create<GameStore>()(
             console.error('[Store] Cannot join - missing socket or playerId');
             return;
           }
+          const walletAddress = typeof window !== 'undefined'
+            ? localStorage.getItem(`wallet_${gameId}_${playerId}`) || undefined
+            : undefined;
+          const playerSeatAddress = typeof window !== 'undefined'
+            ? localStorage.getItem(`playerSeat_${gameId}_${playerId}`) || undefined
+            : undefined;
           console.log('[Store] Emitting join_game event');
-          socket.emit('join_game', { gameId, player: { id: playerId, name: playerName } });
+          socket.emit('join_game', {
+            gameId,
+            player: {
+              id: playerId,
+              name: playerName,
+              walletAddress: walletAddress || undefined,
+              playerSeatAddress: playerSeatAddress || undefined,
+            },
+          });
         },
 
         leaveGame: (gameId) => {

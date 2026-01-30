@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { GameService } from "../services/GameService";
-import type { CreateGameRequest, GameSettings } from "../../../shared/types";
+import { getBackendPublicKey } from "../services/SolanaService";
+import type { CreateGameRequest } from "../../../shared/types";
 
 const router = Router();
 
@@ -13,14 +14,14 @@ router.post("/games", (req: Request, res: Response) => {
     settings,
     hostWalletAddress,
     hostPlayerSeatAddress,
-    tablePDA,
-    tableId,
-    gameAddress,
   } = req.body as CreateGameRequest;
 
   if (!hostId || !hostName || !name || !settings) {
     return res.status(400).json({ error: "Missing required fields" });
   }
+
+  const tableId = Date.now().toString();
+  const backendPublicKey = getBackendPublicKey();
 
   const result = GameService.createGame(
     hostId,
@@ -29,11 +30,32 @@ router.post("/games", (req: Request, res: Response) => {
     settings,
     hostWalletAddress,
     hostPlayerSeatAddress,
-    tablePDA,
+    undefined,
     tableId,
-    gameAddress,
   );
-  res.status(201).json(result);
+
+  res.status(201).json({
+    ...result,
+    tableId,
+    backendPublicKey,
+  });
+});
+
+// Attach on-chain table PDA after creator creates it
+router.post("/games/:id/table", (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { tablePDA } = req.body as { tablePDA?: string };
+
+  if (!tablePDA) {
+    return res.status(400).json({ error: "Missing tablePDA" });
+  }
+
+  const updated = GameService.setTablePDA(id, tablePDA);
+  if (!updated) {
+    return res.status(404).json({ error: "Game not found" });
+  }
+
+  res.json({ success: true });
 });
 
 // Get all active games

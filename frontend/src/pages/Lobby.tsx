@@ -21,7 +21,6 @@ export function Lobby() {
 
   const {
     joinTable,
-    startGame: startGameOnChain,
     isConnected: isWalletConnected,
     walletAddress,
     getPlayerSeatPDA,
@@ -89,6 +88,10 @@ export function Lobby() {
         `playerSeat_${gameState.id}_${playerId}`,
         playerSeatPDA.toBase58(),
       );
+      localStorage.setItem(
+        `wallet_${gameState.id}_${playerId}`,
+        walletAddress,
+      );
 
       setHasJoinedTable(true);
     } catch (err: any) {
@@ -115,37 +118,14 @@ export function Lobby() {
   const handleStart = async () => {
     if (!gameId) return;
 
-    if (!isWalletConnected) {
-      setBlockchainError("Please connect your wallet first");
-      return;
-    }
-
     setBlockchainLoading(true);
     setBlockchainError("");
 
     try {
-      if (!gameState?.tablePDA) {
-        throw new Error("Table address not found. Please create a new game.");
-      }
-
-      if (!gameState?.tableId) {
-        throw new Error("Table ID not found. Please create a new game.");
-      }
-
-      // Use the stored tableId from game state
-      const blockchainGameId = BigInt(gameState.tableId);
-
-      const signature = await startGameOnChain(
-        gameState.tablePDA,
-        blockchainGameId,
-      );
-      console.log("Game started on blockchain:", signature);
-
-      // Then trigger the backend/socket start
       startGame(gameId);
     } catch (err: any) {
-      console.error("Failed to start game on blockchain:", err);
-      setBlockchainError(err?.message || "Failed to start game on blockchain");
+      console.error("Failed to start game:", err);
+      setBlockchainError(err?.message || "Failed to start game");
     } finally {
       setBlockchainLoading(false);
     }
