@@ -47,8 +47,22 @@ export function CreateGame() {
     setError("");
 
     try {
-      // Generate a unique table ID based on timestamp
-      const tableId = BigInt(Date.now());
+      // Create room on backend first
+      const result = await api.createGame({
+        hostId: playerId,
+        hostName: playerName,
+        name: gameName,
+        settings,
+        hostWalletAddress: walletAddress!,
+      });
+
+      if (!result.tableId || !result.backendPublicKey) {
+        throw new Error("Backend did not return table info");
+      }
+
+      const tableId = BigInt(result.tableId);
+      const { PublicKey } = await import("@solana/web3.js");
+      const backendAccount = new PublicKey(result.backendPublicKey);
 
       // Convert chip amounts to lamports (1 chip = 1000000 lamports for this example)
       const lamportsPerChip = BigInt(1000000);
@@ -56,20 +70,20 @@ export function CreateGame() {
       const buyInMax = buyInMin * BigInt(2); // Allow up to 2x buy-in
       const smallBlind = BigInt(settings.smallBlind) * lamportsPerChip;
 
-      // Create table on blockchain
+      // Create table on blockchain with backend authority
       const { signature, tablePDA } = await createTable(
         tableId,
         settings.maxPlayers,
         buyInMin,
         buyInMax,
         smallBlind,
+        backendAccount,
       );
 
       console.log("✅ Table created on blockchain:", { signature, tablePDA });
 
-      // Wait for blockchain state to propagate (same as test does)
-      console.log("⏳ Waiting for blockchain state to propagate...");
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay
+      // Attach table PDA to backend room
+      await api.attachTable(result.gameId, tablePDA);
 
       // Host joins their own table
       console.log("🎲 Host joining table...");
@@ -77,23 +91,10 @@ export function CreateGame() {
       console.log("✅ Host joined table:", joinSignature);
 
       // Derive and store player seat PDA for host
-      const { PublicKey } = await import("@solana/web3.js");
       const tablePubkey = new PublicKey(tablePDA);
       const playerPubkey = new PublicKey(walletAddress!);
       const playerSeatPDA = await getPlayerSeatPDA(tablePubkey, playerPubkey);
       console.log("📍 Host Player Seat PDA:", playerSeatPDA.toBase58());
-
-      // Create game on backend for coordination
-      const result = await api.createGame({
-        hostId: playerId,
-        hostName: playerName,
-        name: gameName,
-        settings,
-        hostWalletAddress: walletAddress!,
-        hostPlayerSeatAddress: playerSeatPDA.toBase58(),
-        tablePDA,
-        tableId: tableId.toString(),
-      });
 
       // Store playerSeatAddress in localStorage for this game
       localStorage.setItem(

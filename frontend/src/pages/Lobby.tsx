@@ -23,7 +23,6 @@ export function Lobby() {
 
   const {
     joinTable,
-    startGame: startGameOnChain,
     isConnected: isWalletConnected,
     walletAddress,
     getPlayerSeatPDA,
@@ -125,54 +124,14 @@ export function Lobby() {
   const handleStart = async () => {
     if (!gameId) return;
 
-    if (!isWalletConnected) {
-      setBlockchainError("Please connect your wallet first");
-      return;
-    }
-
     setBlockchainLoading(true);
     setBlockchainError("");
 
     try {
-      if (!gameState?.tablePDA) {
-        throw new Error("Table address not found. Please create a new game.");
-      }
-
-      if (!gameState?.tableId) {
-        throw new Error("Table ID not found. Please create a new game.");
-      }
-
-      // Use the stored tableId from game state
-      const blockchainGameId = BigInt(gameState.tableId);
-
-      // Get blind amounts from game settings
-      const smallBlindAmount = BigInt(gameState.settings.smallBlind);
-      const bigBlindAmount = BigInt(gameState.settings.bigBlind);
-
-      const result = await startGameOnChain(
-        gameState.tablePDA,
-        blockchainGameId,
-        undefined, // backendAccount - will use wallet as default
-        smallBlindAmount,
-        bigBlindAmount,
-      );
-      console.log("Game started on blockchain:", result);
-
-      // Store the game address in the game state
-      if (result.gameAddress) {
-        // Update local game state with the game address
-        useGameStore.setState((state) => ({
-          gameState: state.gameState
-            ? { ...state.gameState, gameAddress: result.gameAddress }
-            : null,
-        }));
-      }
-
-      // Then trigger the backend/socket start
       startGame(gameId);
     } catch (err: any) {
-      console.error("Failed to start game on blockchain:", err);
-      setBlockchainError(err?.message || "Failed to start game on blockchain");
+      console.error("Failed to start game:", err);
+      setBlockchainError(err?.message || "Failed to start game");
     } finally {
       setBlockchainLoading(false);
     }

@@ -1,5 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { GameService } from "../services/GameService";
+import { startGameOnChain } from "../services/PokerChainService";
 import type {
   ClientToServerEvents,
   ServerToClientEvents,
@@ -75,9 +76,47 @@ export function setupWebSocket(io: GameServer): void {
     });
 
     // Start game
-    socket.on("start_game", ({ gameId }) => {
+    socket.on("start_game", async ({ gameId }) => {
       const playerId = socketToPlayer.get(socket.id);
       if (!playerId) return;
+
+      const canStart = GameService.canStartGame(gameId, playerId);
+
+      if (!canStart.success) {
+        socket.emit("error", {
+          message: canStart.error || "Failed to start game",
+          code: canStart.error || "UNKNOWN",
+        });
+        return;
+      }
+
+      const game = canStart.game!;
+
+      try {
+        const lamportsPerChip = BigInt(1_000_000);
+        const smallBlindAmount =
+          BigInt(game.settings.smallBlind) * lamportsPerChip;
+        const bigBlindAmount =
+          BigInt(game.settings.bigBlind) * lamportsPerChip;
+
+        const onChain = await startGameOnChain({
+          tablePDA: game.tablePDA!,
+          gameId: BigInt(game.tableId!),
+          smallBlindAmount,
+          bigBlindAmount,
+        });
+
+        game.gameAddress = onChain.gameAddress;
+      } catch (error: any) {
+        console.error("Failed to start game on-chain:", error);
+        const errorMessage =
+          error?.message || "Failed to start game on-chain";
+        socket.emit("error", {
+          message: `Failed to start game on-chain: ${errorMessage}`,
+          code: "CHAIN_START_FAILED",
+        });
+        return;
+      }
 
       const result = GameService.startGame(gameId, playerId);
 

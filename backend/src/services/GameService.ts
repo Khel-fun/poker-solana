@@ -82,6 +82,13 @@ class GameServiceClass {
     return this.games.get(gameId);
   }
 
+  setTablePDA(gameId: string, tablePDA: string): boolean {
+    const game = this.games.get(gameId);
+    if (!game) return false;
+    game.tablePDA = tablePDA;
+    return true;
+  }
+
   getActiveGames(): GameListItem[] {
     const activeGames: GameListItem[] = [];
 
@@ -119,8 +126,16 @@ class GameServiceClass {
       return { success: false, error: "GAME_STARTED" };
     }
 
-    // If player is already in the game (e.g., host reconnecting), just return success
-    if (game.players.some((p) => p.id === playerId)) {
+    // If player is already in the game (e.g., host reconnecting), update data
+    const existingPlayer = game.players.find((p) => p.id === playerId);
+    if (existingPlayer) {
+      if (walletAddress) {
+        existingPlayer.walletAddress = walletAddress;
+      }
+      if (playerSeatAddress) {
+        existingPlayer.playerSeatAddress = playerSeatAddress;
+      }
+      existingPlayer.isConnected = true;
       return { success: true, game };
     }
 
@@ -197,6 +212,35 @@ class GameServiceClass {
 
     game.status = "playing";
     this.startNewHand(game);
+
+    return { success: true, game };
+  }
+
+  canStartGame(
+    gameId: string,
+    playerId: string,
+  ): { success: boolean; error?: string; game?: GameState } {
+    const game = this.games.get(gameId);
+
+    if (!game) {
+      return { success: false, error: "GAME_NOT_FOUND" };
+    }
+
+    if (game.hostId !== playerId) {
+      return { success: false, error: "NOT_HOST" };
+    }
+
+    if (game.players.length < 2) {
+      return { success: false, error: "MIN_PLAYERS_NOT_MET" };
+    }
+
+    if (!game.tablePDA) {
+      return { success: false, error: "TABLE_NOT_READY" };
+    }
+
+    if (!game.tableId) {
+      return { success: false, error: "TABLE_ID_MISSING" };
+    }
 
     return { success: true, game };
   }

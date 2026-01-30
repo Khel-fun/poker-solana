@@ -147,11 +147,12 @@ function createTableInstructionData(
   buyInMin: bigint,
   buyInMax: bigint,
   smallBlind: bigint,
+  backendAccount: Address,
 ): Uint8Array {
   // Use the pre-calculated discriminator
   const discriminator = DISCRIMINATORS.CREATE_TABLE;
 
-  const data = new Uint8Array(8 + 8 + 1 + 8 + 8 + 8);
+  const data = new Uint8Array(8 + 8 + 1 + 8 + 8 + 8 + 32);
   let offset = 0;
 
   // Discriminator
@@ -176,6 +177,11 @@ function createTableInstructionData(
 
   // small_blind: u64
   writeU64LE(data, smallBlind, offset);
+  offset += 8;
+
+  // backend_account: Pubkey (32 bytes)
+  const addressEncoder = getAddressEncoder();
+  data.set(addressEncoder.encode(backendAccount), offset);
 
   return data;
 }
@@ -248,6 +254,7 @@ export async function createTable(
   buyInMin: bigint,
   buyInMax: bigint,
   smallBlind: bigint,
+  backendAccount: Address,
 ): Promise<string> {
   // Derive PDAs
   const [tablePDA] = await getTablePDA(signer.address, tableId);
@@ -271,6 +278,7 @@ export async function createTable(
       buyInMin,
       buyInMax,
       smallBlind,
+      backendAccount,
     ),
   };
 

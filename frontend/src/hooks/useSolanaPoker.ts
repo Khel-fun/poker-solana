@@ -143,6 +143,7 @@ export const useSolanaPoker = () => {
     buyInMin: bigint,
     buyInMax: bigint,
     smallBlind: bigint,
+    backendAccount: PublicKey,
   ): Buffer => {
     // Anchor discriminator for create_table (sha256("global:create_table")[0..8])
     const discriminator = Buffer.from([
@@ -156,6 +157,7 @@ export const useSolanaPoker = () => {
       writeU64LE(buyInMin),
       writeU64LE(buyInMax),
       writeU64LE(smallBlind),
+      Buffer.from(backendAccount.toBuffer()),
     ]);
 
     return data;
@@ -310,6 +312,7 @@ export const useSolanaPoker = () => {
       buyInMin: bigint,
       buyInMax: bigint,
       smallBlind: bigint,
+      backendAccount: PublicKey,
     ) => {
       if (!publicKey) throw new Error("Wallet not connected");
 
@@ -325,6 +328,7 @@ export const useSolanaPoker = () => {
         buyInMin: buyInMin.toString(),
         buyInMax: buyInMax.toString(),
         smallBlind: smallBlind.toString(),
+        backend: backendAccount.toBase58(),
       });
 
       const instruction = new TransactionInstruction({
@@ -345,6 +349,7 @@ export const useSolanaPoker = () => {
           buyInMin,
           buyInMax,
           smallBlind,
+          backendAccount,
         ),
       });
 
@@ -619,18 +624,18 @@ export const useSolanaPoker = () => {
   const startGame = useCallback(
     async (
       tableAddress: string,
-      gameId: bigint = BigInt(0),
-      backendAccount?: PublicKey,
-      smallBlindAmount: bigint = BigInt(10000000),
-      bigBlindAmount: bigint = BigInt(20000000),
+      gameId: bigint,
+      backendAccount: PublicKey,
+      smallBlindAmount: bigint,
+      bigBlindAmount: bigint,
     ) => {
       if (!publicKey) throw new Error("Wallet not connected");
+      if (!publicKey.equals(backendAccount)) {
+        throw new Error("Only backend can start the game on-chain");
+      }
 
       const tablePDA = new PublicKey(tableAddress);
       const gamePDA = await getGamePDA(tablePDA, gameId);
-
-      // Use the connected wallet as the backend account if not provided
-      const backend = backendAccount || publicKey;
 
       const instruction = new TransactionInstruction({
         programId: POKER_PROGRAM_ID,
@@ -646,7 +651,7 @@ export const useSolanaPoker = () => {
         ],
         data: startGameInstructionData(
           gameId,
-          backend,
+          backendAccount,
           smallBlindAmount,
           bigBlindAmount,
         ),
