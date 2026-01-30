@@ -67,6 +67,22 @@ export type GameRound = "preflop" | "flop" | "turn" | "river" | "showdown";
 // Game Status
 export type GameStatus = "waiting" | "playing" | "finished";
 
+// Hand Verification Data (for ZK proof tracking)
+export interface roundVerificationData {
+  /** Unique identifier for this hand */
+  roundId: string;
+  /** Shuffle proof transaction signature */
+  shuffleSignature?: string;
+  /** Community cards proof transaction signature */
+  communitySignature?: string;
+  /** Reveal proof transaction signature */
+  revealSignature?: string;
+  /** Whether all proofs verified successfully */
+  allVerified: boolean;
+  /** List of failed circuit IDs */
+  failures: string[];
+}
+
 // Game State
 export interface GameState {
   id: string;
@@ -98,6 +114,12 @@ export interface GameState {
 
   winners?: Winner[];
   createdAt: Date;
+
+  // ZK Proof Verification (optional, for provably fair games)
+  /** Current hand's unique identifier for proof tracking */
+  currentroundId?: string;
+  /** Verification data for the current hand */
+  verificationData?: roundVerificationData;
 }
 
 // Player Action Types
