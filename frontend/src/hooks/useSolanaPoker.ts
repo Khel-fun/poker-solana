@@ -369,13 +369,22 @@ export const useSolanaPoker = () => {
             commitment: "processed",
           });
           if (simulation.value.err) {
-            console.error("❌ CreateTable simulation failed:", simulation.value.err);
+            console.error(
+              "❌ CreateTable simulation failed:",
+              simulation.value.err,
+            );
             if (simulation.value.logs) {
-              console.error("📋 CreateTable simulation logs:", simulation.value.logs);
+              console.error(
+                "📋 CreateTable simulation logs:",
+                simulation.value.logs,
+              );
             }
           }
         } catch (simError: any) {
-          console.warn("⚠️ CreateTable simulation skipped:", simError?.message || String(simError));
+          console.warn(
+            "⚠️ CreateTable simulation skipped:",
+            simError?.message || String(simError),
+          );
         }
 
         console.log("📝 Sending transaction for wallet approval...");
@@ -800,15 +809,10 @@ export const useSolanaPoker = () => {
 
       const seatPubkey = new PublicKey(playerSeatAddress);
       const gamePubkey = new PublicKey(gameAddress);
-      return await decryptHoleCards(
-        connection,
-        seatPubkey,
-        gamePubkey,
-        {
-          publicKey,
-          signMessage,
-        } as any,
-      );
+      return await decryptHoleCards(connection, seatPubkey, gamePubkey, {
+        publicKey,
+        signMessage,
+      } as any);
     },
     [publicKey, connection, signMessage],
   );
@@ -1465,16 +1469,18 @@ export const useSolanaPoker = () => {
 
       const transaction = new Transaction().add(instruction);
 
+      // Get recent blockhash and set fee payer
       const { blockhash, lastValidBlockHeight } =
         await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = publicKey;
+      transaction.signatures = [{ publicKey, signature: null }];
 
       try {
         console.log("📝 Sending settle game transaction...");
 
         const signature = await sendTransaction(transaction, connection, {
-          skipPreflight: false,
+          skipPreflight: true,
           preflightCommitment: "confirmed",
         });
 
@@ -1483,6 +1489,7 @@ export const useSolanaPoker = () => {
           `🔗 View on explorer: https://explorer.solana.com/tx/${signature}?cluster=devnet`,
         );
 
+        // Wait for confirmation using the same blockhash
         await connection.confirmTransaction(
           {
             signature,
@@ -1495,10 +1502,24 @@ export const useSolanaPoker = () => {
         console.log("✅ Game settled successfully!");
         return signature;
       } catch (error: any) {
-        console.error("❌ Settle game transaction failed:", error);
+        console.error("❌ SettleGame transaction failed:", error);
+        console.error("❌ Error name:", error.name);
+        console.error("❌ Error message:", error.message);
+
+        // Try to extract signature from various error properties
+        const errorSig =
+          error.signature || error.txSignature || error.transactionSignature;
+
         if (error.logs) {
           console.error("📋 Transaction logs:", error.logs);
         }
+
+        if (errorSig) {
+          console.error(
+            `🔗 Failed transaction on explorer: https://explorer.solana.com/tx/${errorSig}?cluster=devnet`,
+          );
+        }
+
         throw error;
       }
     },
