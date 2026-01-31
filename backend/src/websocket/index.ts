@@ -1,6 +1,12 @@
 import { Server, Socket } from "socket.io";
 import { GameService } from "../services/GameService";
-import { startGameOnChain } from "../services/PokerChainService";
+import {
+  getTablePlayerCount,
+  processCardsBatches,
+  revealCommunityAndDecrypt,
+  revealHandForPlayer,
+  startGameOnChain,
+} from "../services/PokerChainService";
 import type {
   ClientToServerEvents,
   ServerToClientEvents,
@@ -93,20 +99,37 @@ export function setupWebSocket(io: GameServer): void {
       const game = canStart.game!;
 
       try {
+        const onchainPlayerCount = await getTablePlayerCount(game.tablePDA!);
+        if (onchainPlayerCount < 2) {
+          console.warn("[Socket] On-chain player_count too low", {
+            gameId,
+            tablePDA: game.tablePDA,
+            onchainPlayerCount,
+          });
+          socket.emit("error", {
+            message:
+              `Not enough players on-chain (count=${onchainPlayerCount}). Make sure at least 2 players have joined the table on-chain before starting.`,
+            code: "ONCHAIN_MIN_PLAYERS",
+          });
+          return;
+        }
+
         const lamportsPerChip = BigInt(1_000_000);
         const smallBlindAmount =
           BigInt(game.settings.smallBlind) * lamportsPerChip;
         const bigBlindAmount =
           BigInt(game.settings.bigBlind) * lamportsPerChip;
 
+        const onchainGameId = BigInt(Date.now());
         const onChain = await startGameOnChain({
           tablePDA: game.tablePDA!,
-          gameId: BigInt(game.tableId!),
+          gameId: onchainGameId,
           smallBlindAmount,
           bigBlindAmount,
         });
 
         game.gameAddress = onChain.gameAddress;
+        game.onchainGameId = onchainGameId.toString();
       } catch (error: any) {
         console.error("Failed to start game on-chain:", error);
         const errorMessage =
@@ -140,18 +163,100 @@ export function setupWebSocket(io: GameServer): void {
         }
       }
 
-      // Notify whose turn it is
-      const currentPlayer =
-        result.game!.players[result.game!.currentPlayerIndex];
-      const validActions = GameService.getValidActions(
-        result.game!,
-        currentPlayer,
-      );
-      io.to(gameId).emit("player_turn", {
-        playerId: currentPlayer.id,
-        timeRemaining: result.game!.settings.turnTimeSeconds,
-        validActions,
-      });
+      // Process cards on-chain in background
+      (async () => {
+        try {
+          const game = GameService.getGame(gameId);
+          if (!game?.tablePDA || !game.gameAddress) return;
+
+          await processCardsBatches({
+            tablePDA: game.tablePDA,
+            gameAddress: game.gameAddress,
+          });
+
+          io.to(gameId).emit("cards_processed", {
+            gameId,
+            gameAddress: game.gameAddress,
+          });
+
+          // Now notify whose turn it is
+          const currentPlayer =
+            game.players[game.currentPlayerIndex];
+          const validActions = GameService.getValidActions(
+            game,
+            currentPlayer,
+          );
+          io.to(gameId).emit("player_turn", {
+            playerId: currentPlayer.id,
+            timeRemaining: game.settings.turnTimeSeconds,
+            validActions,
+          });
+        } catch (error) {
+          console.error("Failed to process cards on-chain:", error);
+        }
+      })();
+    });
+
+    socket.on("request_initial_hands", async ({ gameId }) => {
+      const playerId = socketToPlayer.get(socket.id);
+      if (!playerId) return;
+
+      const game = GameService.getGame(gameId);
+      if (!game?.tablePDA || !game.gameAddress) return;
+
+      const player = game.players.find((p) => p.id === playerId);
+      if (!player?.playerSeatAddress || !player.walletAddress) return;
+
+      try {
+        await revealHandForPlayer({
+          tablePDA: game.tablePDA,
+          gameAddress: game.gameAddress,
+          playerSeatAddress: player.playerSeatAddress,
+          playerAddress: player.walletAddress,
+        });
+
+        io.to(socket.id).emit("hand_reveal_ready", { gameId });
+      } catch (error) {
+        console.error("Failed to reveal hand:", error);
+        socket.emit("error", {
+          message: "Failed to reveal hand",
+          code: "REVEAL_HAND_FAILED",
+        });
+      }
+    });
+
+    socket.on("request_reveal_community", async ({ gameId }) => {
+      const game = GameService.getGame(gameId);
+      if (!game?.tablePDA || !game.gameAddress) return;
+
+      try {
+        const communityCards = await revealCommunityAndDecrypt({
+          tablePDA: game.tablePDA,
+          gameAddress: game.gameAddress,
+        });
+
+        GameService.setOnchainCommunityCards(gameId, communityCards);
+
+        const updatedGame = GameService.getGame(gameId);
+        if (updatedGame) {
+          io.to(gameId).emit("game_state", updatedGame);
+        }
+
+        io.to(gameId).emit("community_ready", { gameId });
+      } catch (error) {
+        console.error("Failed to reveal community:", error);
+        socket.emit("error", {
+          message: "Failed to reveal community cards",
+          code: "REVEAL_COMMUNITY_FAILED",
+        });
+      }
+    });
+
+    socket.on("submit_hole_cards", ({ gameId, cards }) => {
+      const playerId = socketToPlayer.get(socket.id);
+      if (!playerId) return;
+
+      GameService.setPlayerCards(gameId, playerId, cards);
     });
 
     // Player action

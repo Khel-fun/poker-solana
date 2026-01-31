@@ -11,12 +11,12 @@ import type {
   ActionType,
   GameRound,
 } from "../../../shared/types";
-import { DeckService } from "./DeckService";
 import { HandEvaluator } from "./HandEvaluator";
 
 class GameServiceClass {
   private games: Map<string, GameState> = new Map();
   private playerToGame: Map<string, string> = new Map();
+  private onchainCommunityCards: Map<string, Card[]> = new Map();
 
   createGame(
     hostId: string,
@@ -80,6 +80,23 @@ class GameServiceClass {
 
   getGame(gameId: string): GameState | undefined {
     return this.games.get(gameId);
+  }
+
+  setOnchainCommunityCards(gameId: string, cards: Card[]): boolean {
+    const game = this.games.get(gameId);
+    if (!game) return false;
+    this.onchainCommunityCards.set(gameId, cards);
+    game.communityCards = [];
+    return true;
+  }
+
+  setPlayerCards(gameId: string, playerId: string, cards: Card[]): boolean {
+    const game = this.games.get(gameId);
+    if (!game) return false;
+    const player = game.players.find((p) => p.id === playerId);
+    if (!player) return false;
+    player.cards = cards;
+    return true;
   }
 
   setTablePDA(gameId: string, tablePDA: string): boolean {
@@ -293,17 +310,8 @@ class GameServiceClass {
     this.postBlind(game, game.bigBlindIndex, game.settings.bigBlind);
     game.currentBet = game.settings.bigBlind;
 
-    // Create and shuffle deck
-    game.deck = DeckService.createShuffledDeck();
-
-    // Deal hole cards
-    for (const player of game.players) {
-      if (player.chips > 0 || player.isAllIn) {
-        const { dealt, remaining } = DeckService.dealCards(game.deck, 2);
-        player.cards = dealt;
-        game.deck = remaining;
-      }
-    }
+    // On-chain cards only: defer hole cards to player decryption
+    game.deck = [];
 
     // Set first player to act (left of big blind)
     game.currentPlayerIndex = this.getNextActivePlayerIndex(
@@ -496,35 +504,28 @@ class GameServiceClass {
     const nonFoldedPlayers = game.players.filter((p) => !p.folded);
     const activePlayers = nonFoldedPlayers.filter((p) => !p.isAllIn);
 
+    const onchainCards = this.onchainCommunityCards.get(game.id);
+
     switch (game.round) {
       case "preflop":
         game.round = "flop";
-        const { dealt: flop, remaining: afterFlop } = DeckService.dealCards(
-          game.deck,
-          3,
-        );
-        game.communityCards = flop;
-        game.deck = afterFlop;
+        if (onchainCards) {
+          game.communityCards = onchainCards.slice(0, 3);
+        }
         break;
 
       case "flop":
         game.round = "turn";
-        const { dealt: turn, remaining: afterTurn } = DeckService.dealCards(
-          game.deck,
-          1,
-        );
-        game.communityCards.push(...turn);
-        game.deck = afterTurn;
+        if (onchainCards) {
+          game.communityCards = onchainCards.slice(0, 4);
+        }
         break;
 
       case "turn":
         game.round = "river";
-        const { dealt: river, remaining: afterRiver } = DeckService.dealCards(
-          game.deck,
-          1,
-        );
-        game.communityCards.push(...river);
-        game.deck = afterRiver;
+        if (onchainCards) {
+          game.communityCards = onchainCards.slice(0, 5);
+        }
         break;
 
       case "river":
@@ -534,11 +535,8 @@ class GameServiceClass {
 
     // If only one player can act, skip to showdown
     if (activePlayers.length <= 1) {
-      // Deal remaining community cards
-      while (game.communityCards.length < 5) {
-        const { dealt, remaining } = DeckService.dealCards(game.deck, 1);
-        game.communityCards.push(...dealt);
-        game.deck = remaining;
+      if (onchainCards) {
+        game.communityCards = onchainCards.slice(0, 5);
       }
       game.round = "showdown";
       return this.handleShowdown(game);
@@ -559,6 +557,14 @@ class GameServiceClass {
   } {
     const nonFoldedPlayers = game.players.filter((p) => !p.folded);
 
+    if (game.communityCards.length < 5 && nonFoldedPlayers.length > 1) {
+      console.warn(
+        "[GameService] Showdown requested before community cards are ready",
+        { gameId: game.id, round: game.round, communityCount: game.communityCards.length },
+      );
+      return { handComplete: false, winners: [] };
+    }
+
     // Calculate side pots if needed
     const pots = this.calculatePots(game);
     const allWinners: Winner[] = [];
@@ -566,6 +572,9 @@ class GameServiceClass {
     for (const pot of pots) {
       const eligiblePlayers = nonFoldedPlayers.filter((p) =>
         pot.eligiblePlayerIds.includes(p.id),
+      );
+      const eligibleWithCards = eligiblePlayers.filter(
+        (p) => p.cards && p.cards.length >= 2,
       );
 
       if (eligiblePlayers.length === 1) {
@@ -576,11 +585,27 @@ class GameServiceClass {
           amount: pot.amount,
           handRank: "Uncontested",
         });
+      } else if (eligibleWithCards.length === 1) {
+        const winner = eligibleWithCards[0];
+        winner.chips += pot.amount;
+        allWinners.push({
+          playerId: winner.id,
+          amount: pot.amount,
+          handRank: "Uncontested",
+        });
       } else {
         const winnerResults = HandEvaluator.findWinners(
-          eligiblePlayers.map((p) => ({ id: p.id, cards: p.cards })),
+          eligibleWithCards.map((p) => ({ id: p.id, cards: p.cards })),
           game.communityCards,
         );
+
+        if (winnerResults.length === 0) {
+          console.warn(
+            "[GameService] Showdown has no eligible hands",
+            { gameId: game.id, eligiblePlayers: eligiblePlayers.length },
+          );
+          return { handComplete: false, winners: [] };
+        }
 
         const splitAmount = Math.floor(pot.amount / winnerResults.length);
         for (const result of winnerResults) {

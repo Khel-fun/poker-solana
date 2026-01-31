@@ -87,13 +87,14 @@ function decodeCardValue(value: string): DecryptedCard {
 export async function decryptHoleCards(
   connection: any, // Connection type
   playerSeatAddress: PublicKey,
+  gameAddress: PublicKey,
   wallet: WalletContextState,
 ): Promise<DecryptedCard[]> {
   if (!wallet.publicKey || !wallet.signMessage) {
     throw new Error("Wallet not connected or does not support message signing");
   }
 
-  // Fetch PlayerSeat account
+  // Fetch PlayerSeat account to read seat_index
   const accountInfo = await connection.getAccountInfo(playerSeatAddress);
   if (!accountInfo) {
     throw new Error("PlayerSeat account not found");
@@ -106,48 +107,14 @@ export async function decryptHoleCards(
   // 32 bytes: game (Pubkey)
   // 32 bytes: player (Pubkey)
   // 1 byte: seat_index
-  // 8 bytes: chips
-  // 16 bytes: hole_card_1 (Euint128)
-  // 16 bytes: hole_card_2 (Euint128)
-  // ... rest
+  const SEAT_INDEX_OFFSET = 8 + 32 + 32;
+  const seatIndex = data[SEAT_INDEX_OFFSET];
 
-  const HOLE_CARD_1_OFFSET = 8 + 32 + 32 + 1 + 8; // = 81
-  const HOLE_CARD_2_OFFSET = HOLE_CARD_1_OFFSET + 16; // = 97
-
-  const holeCard1Bytes = data.slice(
-    HOLE_CARD_1_OFFSET,
-    HOLE_CARD_1_OFFSET + 16,
-  );
-  const holeCard2Bytes = data.slice(
-    HOLE_CARD_2_OFFSET,
-    HOLE_CARD_2_OFFSET + 16,
-  );
-
-  // Convert to handles
-  const handle1 = euint128ToHandle(holeCard1Bytes);
-  const handle2 = euint128ToHandle(holeCard2Bytes);
-
-  console.log("Decrypting hole cards:", { handle1, handle2 });
-
-  try {
-    // Use Inco's Attested Decrypt (requires wallet signature)
-    const result = await decrypt([handle1, handle2], {
-      address: wallet.publicKey,
-      signMessage: wallet.signMessage,
-    });
-
-    // Decode the plaintext values
-    const cards = result.plaintexts.map(decodeCardValue);
-
-    console.log("Decrypted cards:", cards);
-    return cards;
-  } catch (error) {
-    if (error instanceof AttestedDecryptError) {
-      console.error("Inco decryption failed:", error.message);
-      throw new Error(`Failed to decrypt cards: ${error.message}`);
-    }
-    throw error;
+  if (seatIndex === undefined) {
+    throw new Error("Failed to read seat index");
   }
+
+  return decryptHoleCardsFromGame(connection, gameAddress, seatIndex, wallet);
 }
 
 /**
@@ -186,28 +153,23 @@ export async function decryptCommunityCards(
 
   const data = accountInfo.data;
 
-  // PokerGame layout (NEW ARCHITECTURE):
+  // PokerGame layout (CURRENT):
   // 8 bytes: discriminator
   // 32 bytes: table
   // 8 bytes: game_id
   // 1 byte: stage
   // 8 bytes: pot
-  // 8 bytes: current_bet
-  // 1 byte: dealer_position
-  // 1 byte: action_on
-  // 1 byte: players_remaining
-  // 1 byte: players_acted
   // 1 byte: player_count
-  // 1 byte: folded_mask
-  // 1 byte: all_in_mask
-  // 1 byte: blinds_posted
-  // 1 byte: last_raiser
-  // 8 bytes: last_raise_amount
-  // 16 bytes: shuffle_random (Euint128)
+  // 8 bytes: shuffle_seed
+  // 16 bytes: card_offset (Euint128)
   // 5 bytes: shuffled_indices [u8; 5]
-  // 160 bytes: deal_cards [Euint128; 10] (10 * 16)
-  // 80 bytes: community_cards [Euint128; 5] (5 * 16)
-  // ... rest
+  // 160 bytes: deal_cards [Euint128; 10]
+  // 80 bytes: community_cards [Euint128; 5]
+  // 1 byte: cards_processed
+  // 32 bytes: backend_account
+  // 2 bytes: winner_seat (Option<u8>)
+  // 40 bytes: payouts [u64; 5]
+  // 1 byte: bump
 
   const COMMUNITY_CARDS_OFFSET =
     8 + // discriminator
@@ -215,18 +177,9 @@ export async function decryptCommunityCards(
     8 + // game_id
     1 + // stage
     8 + // pot
-    8 + // current_bet
-    1 + // dealer_position
-    1 + // action_on
-    1 + // players_remaining
-    1 + // players_acted
     1 + // player_count
-    1 + // folded_mask
-    1 + // all_in_mask
-    1 + // blinds_posted
-    1 + // last_raiser
-    8 + // last_raise_amount
-    16 + // shuffle_random
+    8 + // shuffle_seed
+    16 + // card_offset
     5 + // shuffled_indices
     160; // deal_cards
 
@@ -305,7 +258,14 @@ export async function decryptHoleCardsFromGame(
 
   // Read shuffled_indices to find which pair belongs to this seat
   const SHUFFLED_INDICES_OFFSET =
-    8 + 32 + 8 + 1 + 8 + 8 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 8 + 16;
+    8 + // discriminator
+    32 + // table
+    8 + // game_id
+    1 + // stage
+    8 + // pot
+    1 + // player_count
+    8 + // shuffle_seed
+    16; // card_offset
   const shuffledIndices = Array.from(
     data.slice(SHUFFLED_INDICES_OFFSET, SHUFFLED_INDICES_OFFSET + 5),
   );
@@ -333,6 +293,12 @@ export async function decryptHoleCardsFromGame(
     handle1,
     handle2,
   });
+
+  if (handle1 === "0" || handle2 === "0") {
+    throw new Error(
+      "Hole cards are not ready yet (handle=0). Wait for cards_processed.",
+    );
+  }
 
   try {
     // Use Inco's Attested Decrypt

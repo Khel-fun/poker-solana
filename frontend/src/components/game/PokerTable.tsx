@@ -6,6 +6,7 @@ import { PlayingCard } from "./PlayingCard";
 import { ActionPanel } from "./ActionPanel";
 import { CoinAnimation } from "./CoinAnimation";
 import { useCardDecryption } from "../../hooks/useCardDecryption";
+import { useGameStore } from "../../stores/gameStore";
 import clsx from "clsx";
 
 interface PokerTableProps {
@@ -36,28 +37,32 @@ const seatPositions = [
   "bottom-24 right-24", // Position 4: Bottom right
 ];
 
-// Map game round to stage number for Inco decryption
-const roundToStage: Record<string, number> = {
-  "pre-flop": 1,
-  flop: 2,
-  turn: 3,
-  river: 4,
-  showdown: 5,
-};
-
 export function PokerTable({
   gameState,
   currentPlayerId,
   currentTurnPlayerId,
-  gameAddress,
   tableAddress,
+  gameAddress,
   gameId,
   validActions,
   timeRemaining,
   onAction,
 }: PokerTableProps) {
-  const { communityCards, decryptCommunity, isDecrypting, error } =
-    useCardDecryption();
+  const {
+    communityCards,
+    isDecrypting,
+    error,
+    decryptMyCardsOnly,
+    myCards,
+  } = useCardDecryption();
+  const {
+    cardsProcessed,
+    communityReady,
+    handRevealReady,
+    requestInitialHands,
+    requestRevealCommunity,
+    submitHoleCards,
+  } = useGameStore();
   const [coinAnimations, setCoinAnimations] = useState<CoinAnimationState[]>([]);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
   const potRef = useRef<HTMLDivElement>(null);
@@ -69,7 +74,6 @@ export function PokerTable({
   });
 
   const isShowdown = gameState.round === "showdown";
-  const currentStage = roundToStage[gameState.round] || 0;
   const currentPlayer = gameState.players.find((p) => p.id === currentPlayerId);
   const isMyTurn = currentTurnPlayerId === currentPlayerId;
 
@@ -77,19 +81,32 @@ export function PokerTable({
   const displayCommunityCards =
     communityCards.length > 0 ? communityCards : gameState.communityCards;
 
-  // Show reveal button if:
-  // - We have a game address
-  // - We're past pre-flop (stage >= 2)
-  // - We haven't decrypted yet (communityCards is empty)
   const shouldShowRevealButton =
-    gameAddress && currentStage >= 2 && communityCards.length === 0;
+    cardsProcessed && !communityReady && displayCommunityCards.length === 0;
+
+  const currentPlayerSeatAddress =
+    currentPlayer?.playerSeatAddress ||
+    (currentPlayerId
+      ? localStorage.getItem(
+          `playerSeat_${window.location.pathname.split("/").pop()}_${currentPlayerId}`,
+        )
+      : null);
+
+  const handleRequestHands = () => {
+    requestInitialHands(gameState.id);
+  };
+
+  const handleDecryptMyHand = async () => {
+    if (!currentPlayerSeatAddress) return;
+    if (!gameAddress) return;
+    const cards = await decryptMyCardsOnly(currentPlayerSeatAddress, gameAddress);
+    if (cards.length > 0) {
+      submitHoleCards(gameState.id, cards);
+    }
+  };
 
   const handleRevealCommunity = async () => {
-    if (!gameAddress) {
-      console.error("No game address provided");
-      return;
-    }
-    await decryptCommunity(gameAddress, currentStage);
+    requestRevealCommunity(gameState.id);
   };
 
   const removeCoinAnimation = useCallback((id: string) => {
@@ -206,6 +223,30 @@ export function PokerTable({
                 </button>
               )}
 
+              {cardsProcessed && !handRevealReady && (
+                <button
+                  onClick={handleRequestHands}
+                  className="mb-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all shadow-lg bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Request Initial Hands
+                </button>
+              )}
+
+              {cardsProcessed && handRevealReady && myCards.length === 0 && (
+                <button
+                  onClick={handleDecryptMyHand}
+                  disabled={isDecrypting}
+                  className={clsx(
+                    "mb-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all shadow-lg",
+                    isDecrypting
+                      ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                      : "bg-green-600 hover:bg-green-700 text-white",
+                  )}
+                >
+                  {isDecrypting ? "Decrypting..." : "Decrypt My Hand"}
+                </button>
+              )}
+
               {/* Error message */}
               {error && <p className="text-red-400 text-xs mb-2">{error}</p>}
 
@@ -244,6 +285,7 @@ export function PokerTable({
                   showCards={isShowdown}
                   playerSeatAddress={player.playerSeatAddress}
                   tableAddress={tableAddress}
+                  gameAddress={gameAddress}
                   gameId={gameId}
                   timeRemaining={timeRemaining}
                   turnTime={gameState.settings.turnTimeSeconds}

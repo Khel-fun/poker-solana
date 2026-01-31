@@ -92,8 +92,6 @@ export function Lobby() {
 
       console.log("📍 Player Seat PDA:", playerSeatPDA.toBase58());
 
-      // TODO: Send playerSeatAddress to backend via socket
-      // For now, we'll store it in localStorage as a workaround
       localStorage.setItem(
         `playerSeat_${gameState.id}_${playerId}`,
         playerSeatPDA.toBase58(),
@@ -102,6 +100,9 @@ export function Lobby() {
         `wallet_${gameState.id}_${playerId}`,
         walletAddress,
       );
+
+      // Update backend with wallet + seat info
+      joinGame(gameState.id, walletAddress, playerSeatPDA.toBase58());
 
       setHasJoinedTable(true);
     } catch (err: any) {

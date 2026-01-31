@@ -26,6 +26,9 @@ interface GameStore {
   currentTurnPlayerId: string | null;
   validActions: ActionType[];
   timeRemaining: number;
+  cardsProcessed: boolean;
+  communityReady: boolean;
+  handRevealReady: boolean;
 
   // UI state
   error: string | null;
@@ -42,6 +45,9 @@ interface GameStore {
     walletAddress?: string,
     playerSeatAddress?: string,
   ) => void;
+  requestInitialHands: (gameId: string) => void;
+  requestRevealCommunity: (gameId: string) => void;
+  submitHoleCards: (gameId: string, cards: Card[]) => void;
   leaveGame: (gameId: string) => void;
   startGame: (gameId: string) => void;
   performAction: (gameId: string, action: PlayerAction) => void;
@@ -108,7 +114,35 @@ export const useGameStore = create<GameStore>()(
         });
 
         s.on("game_started", (state) => {
-          set({ gameState: state, winners: null, showdown: null });
+          set({
+            gameState: state,
+            winners: null,
+            showdown: null,
+            cardsProcessed: false,
+            communityReady: false,
+            handRevealReady: false,
+          });
+        });
+
+        s.on("cards_processed", ({ gameId }) => {
+          const { gameState } = get();
+          if (gameState?.id === gameId) {
+            set({ cardsProcessed: true });
+          }
+        });
+
+        s.on("community_ready", ({ gameId }) => {
+          const { gameState } = get();
+          if (gameState?.id === gameId) {
+            set({ communityReady: true });
+          }
+        });
+
+        s.on("hand_reveal_ready", ({ gameId }) => {
+          const { gameState } = get();
+          if (gameState?.id === gameId) {
+            set({ handRevealReady: true });
+          }
         });
 
         s.on("player_turn", ({ playerId, timeRemaining, validActions }) => {
@@ -165,6 +199,9 @@ export const useGameStore = create<GameStore>()(
         currentTurnPlayerId: null,
         validActions: [],
         timeRemaining: 0,
+        cardsProcessed: false,
+        communityReady: false,
+        handRevealReady: false,
         error: null,
         winners: null,
         showdown: null,
@@ -218,6 +255,21 @@ export const useGameStore = create<GameStore>()(
               playerSeatAddress,
             },
           });
+        },
+
+        requestInitialHands: (gameId) => {
+          if (!socket) return;
+          socket.emit("request_initial_hands", { gameId });
+        },
+
+        requestRevealCommunity: (gameId) => {
+          if (!socket) return;
+          socket.emit("request_reveal_community", { gameId });
+        },
+
+        submitHoleCards: (gameId, cards) => {
+          if (!socket) return;
+          socket.emit("submit_hole_cards", { gameId, cards });
         },
 
         leaveGame: (gameId) => {
@@ -325,6 +377,9 @@ export const useGameStore = create<GameStore>()(
             winners: null,
             showdown: null,
             isSettlingGame: false,
+            cardsProcessed: false,
+            communityReady: false,
+            handRevealReady: false,
           });
         },
       };
