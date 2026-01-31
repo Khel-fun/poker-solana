@@ -44,14 +44,14 @@ pub enum PokerError {
     #[msg("Only admin can perform this action")]
     NotAdmin,
 
-    #[msg("Cards not submitted yet")]
+    #[msg("Only backend can perform this action")]
+    NotBackend,
+
+    #[msg("Cards not processed yet")]
     CardsNotSubmitted,
 
-    #[msg("Cards already submitted")]
-    CardsAlreadySubmitted,
-
-    #[msg("Cards already dealt")]
-    CardsAlreadyDealt,
+    #[msg("Cards not processed - all 8 batches must complete")]
+    CardsNotProcessed,
 
     #[msg("Invalid card count")]
     InvalidCardCount,
@@ -77,12 +77,6 @@ pub enum PokerError {
     #[msg("Winner not determined")]
     WinnerNotDetermined,
 
-    #[msg("Offset already applied")]
-    OffsetAlreadyApplied,
-
-    #[msg("Offset not yet applied - call apply_offset first")]
-    OffsetNotApplied,
-
     #[msg("Invalid seat index")]
     InvalidSeatIndex,
 
@@ -92,9 +86,15 @@ pub enum PokerError {
     #[msg("Invalid batch index (must be 0, 1, or 2)")]
     InvalidBatchIndex,
 
-    #[msg("Batch out of order - previous batch not complete")]
-    BatchOutOfOrder,
+    #[msg("Cards already processed")]
+    CardsAlreadyProcessed,
 
-    #[msg("Position offset already generated")]
-    PositionOffsetAlreadySet,
+    #[msg("Frontend account not set")]
+    FrontendAccountNotSet,
+
+    #[msg("Not enough allowance accounts provided")]
+    MissingAllowanceAccounts,
+
+    #[msg("Invalid refund accounts provided")]
+    InvalidRefundAccounts,
 }

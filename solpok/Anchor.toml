@@ -1,17 +1,13 @@
 [toolchain]
 package_manager = "yarn"
-anchor_version = "0.31.1"
 
 [features]
 resolution = true
 skip-lint = false
 
-[programs.localnet]
-solana_poker = "2fS8A3rSY5zSJyc5kaCKhAhwjpLiRPhth1bTwNWmGNcm"
-
 [programs.devnet]
-solana_poker = "2fS8A3rSY5zSJyc5kaCKhAhwjpLiRPhth1bTwNWmGNcm"
-inco_lightning = "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj"
+private_raffle = "3EqTRzYX1UTiXckfNn1kPronmoB7QYT3gnPoPuEsqZ5c"
+solana_poker = "7EZ1zWNMjuHh62dikk9TAo478VMzAiLkvg8S7Vm85T7s"
 
 [registry]
 url = "https://devnet.helius-rpc.com/?api-key=19e8e7a6-48a7-405a-95d6-27123b062c3d"

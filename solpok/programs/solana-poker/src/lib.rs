@@ -8,31 +8,25 @@ pub mod state;
 
 pub mod create_table;
 pub mod join_table;
-pub mod leave_table;
-pub mod start_game;
-pub mod submit_cards;
-pub mod generate_offset;
-pub mod deal_cards;
-pub mod player_action;
-pub mod advance_stage;
+pub mod refund_all;
+pub mod process_cards;
+pub mod reveal_card_offset;
+pub mod reveal_community;
+pub mod reveal_hand;
 pub mod settle_game;
-pub mod post_blinds;
-pub mod apply_offset_batch;
+pub mod start_game;
 
 use create_table::*;
 use join_table::*;
-use leave_table::*;
-use start_game::*;
-use submit_cards::*;
-use generate_offset::*;
-use deal_cards::*;
-use player_action::*;
-use advance_stage::*;
+use refund_all::*;
+use process_cards::*;
+use reveal_card_offset::*;
+use reveal_community::*;
+use reveal_hand::*;
 use settle_game::*;
-use post_blinds::*;
-use apply_offset_batch::*;
+use start_game::*;
 
-declare_id!("2fS8A3rSY5zSJyc5kaCKhAhwjpLiRPhth1bTwNWmGNcm");
+declare_id!("7EZ1zWNMjuHh62dikk9TAo478VMzAiLkvg8S7Vm85T7s");
 
 #[program]
 pub mod solana_poker {
@@ -46,8 +40,17 @@ pub mod solana_poker {
         buy_in_min: u64,
         buy_in_max: u64,
         small_blind: u64,
+        backend_account: Pubkey,
     ) -> Result<()> {
-        create_table::handler(ctx, table_id, max_players, buy_in_min, buy_in_max, small_blind)
+        create_table::handler(
+            ctx,
+            table_id,
+            max_players,
+            buy_in_min,
+            buy_in_max,
+            small_blind,
+            backend_account,
+        )
     }
 
     /// Player joins a table with a buy-in
@@ -55,81 +58,82 @@ pub mod solana_poker {
         join_table::handler(ctx, buy_in)
     }
 
-    /// Player leaves table and withdraws chips
-    pub fn leave_table(ctx: Context<LeaveTable>, amount: u64) -> Result<()> {
-        leave_table::handler(ctx, amount)
+    /// Backend refunds all players and clears table
+    pub fn refund_all<'info>(
+        ctx: Context<'_, '_, 'info, 'info, RefundAll<'info>>,
+    ) -> Result<()> {
+        refund_all::handler(ctx)
     }
 
-    /// Admin starts a new game
-    pub fn start_game(ctx: Context<StartGame>, game_id: u64) -> Result<()> {
-        start_game::handler(ctx, game_id)
+    /// Admin starts a new game with blind bets
+    ///
+    /// Pass small_blind and big_blind seat accounts via remaining_accounts
+    /// to collect blind bets at game start.
+    pub fn start_game<'info>(
+        ctx: Context<'_, '_, 'info, 'info, StartGame<'info>>,
+        game_id: u64,
+        backend_account: Pubkey,
+        small_blind_amount: u64,
+        big_blind_amount: u64,
+    ) -> Result<()> {
+        start_game::handler(
+            ctx,
+            game_id,
+            backend_account,
+            small_blind_amount,
+            big_blind_amount,
+        )
     }
 
-    /// Backend submits encrypted cards in batches of 5
-    /// batch_index: 0=cards 0-4, 1=cards 5-9, 2=cards 10-14
-    pub fn submit_cards<'info>(
-        ctx: Context<'_, '_, '_, 'info, SubmitCards<'info>>,
+    /// Process cards in mini-batches (2 cards per batch, 8 batches total)
+    ///
+    /// Batch 0: Uses blockhash for shuffle seed and offset
+    /// Batch 1-6: Process cards 2-13
+    /// Batch 7: Process card 14, sets cards_processed = true, stage = Playing
+    ///
+    /// After batch 7, backend can proceed with off-chain gameplay.
+    pub fn process_cards_batch<'info>(
+        ctx: Context<'_, '_, '_, 'info, ProcessCardsBatch<'info>>,
         batch_index: u8,
-        encrypted_card_0: Vec<u8>,
-        encrypted_card_1: Vec<u8>,
-        encrypted_card_2: Vec<u8>,
-        encrypted_card_3: Vec<u8>,
-        encrypted_card_4: Vec<u8>,
+        card_0: Vec<u8>,
+        card_1: Vec<u8>,
         input_type: u8,
     ) -> Result<()> {
-        submit_cards::handler(ctx, batch_index, encrypted_card_0, encrypted_card_1, encrypted_card_2, encrypted_card_3, encrypted_card_4, input_type)
+        process_cards::handler(ctx, batch_index, card_0, card_1, input_type)
     }
 
-    /// Generate position offset using slot hash (COMMIT-REVEAL pattern)
-    /// MUST call AFTER apply_offset_batch completes, BEFORE deal_cards
-    pub fn generate_offset(ctx: Context<GenerateOffset>) -> Result<()> {
-        generate_offset::handler(ctx)
+    /// Player reveals their hand (grants decrypt access to themselves)
+    pub fn reveal_hand<'info>(ctx: Context<'_, '_, '_, 'info, RevealHand<'info>>) -> Result<()> {
+        reveal_hand::handler(ctx)
     }
 
-    /// Apply encrypted value offset to cards in batches (idempotent, resumable)
-    /// batch_index: 0 = cards 0-4 + generate offset, 1 = cards 5-9, 2 = cards 10-14
-    pub fn apply_offset_batch<'info>(
-        ctx: Context<'_, '_, '_, 'info, ApplyOffsetBatch<'info>>,
-        batch_index: u8,
+    /// Admin allows a player to decrypt the card_offset handle
+    /// Used to verify the offset value (0-51)
+    pub fn reveal_card_offset<'info>(
+        ctx: Context<'_, '_, '_, 'info, RevealCardOffset<'info>>,
     ) -> Result<()> {
-        apply_offset_batch::handler(ctx, batch_index)
+        reveal_card_offset::handler(ctx)
     }
 
-    /// Deal hole cards to player from shuffled card pool
-    pub fn deal_cards<'info>(
-        ctx: Context<'_, '_, '_, 'info, DealCards<'info>>,
-        seat_index: u8,
-        buy_in: u64,
+    /// Backend reveals all 5 community cards for off-chain gameplay
+    ///
+    /// Pass 5 allowance accounts via remaining_accounts (one per community card).
+    /// Backend can then decrypt and reveal cards progressively during gameplay.
+    pub fn reveal_community<'info>(
+        ctx: Context<'_, '_, '_, 'info, RevealCommunity<'info>>,
     ) -> Result<()> {
-        deal_cards::handler(ctx, seat_index, buy_in)
-    }
-
-    /// Player takes a betting action (0=Fold, 1=Check, 2=Call, 3=Raise, 4=AllIn)
-    pub fn player_action(
-        ctx: Context<PlayerActionCtx>,
-        action: u8,
-        raise_amount: u64,
-    ) -> Result<()> {
-        player_action::handler(ctx, action, raise_amount)
-    }
-
-    /// Post small blind and big blind at start of PreFlop
-    pub fn post_blinds<'info>(
-        ctx: Context<'_, '_, '_, 'info, PostBlinds<'info>>,
-    ) -> Result<()> {
-        post_blinds::handler(ctx)
-    }
-
-    /// Advance game to next stage
-    /// Pass PlayerSeat accounts via remaining_accounts to reset bets
-    pub fn advance_stage<'info>(
-        ctx: Context<'_, '_, '_, 'info, AdvanceStage<'info>>,
-    ) -> Result<()> {
-        advance_stage::handler(ctx)
+        reveal_community::handler(ctx)
     }
 
     /// Settle the game and pay the winner
-    pub fn settle_game(ctx: Context<SettleGame>, winner_seat_index: u8) -> Result<()> {
-        settle_game::handler(ctx, winner_seat_index)
+    ///
+    /// Called by backend after off-chain gameplay completes.
+    /// Transfers final_pot from vault to winner's wallet.
+    pub fn settle_game(
+        ctx: Context<SettleGame>,
+        winner_seat_index: u8,
+        final_pot: u64,
+    ) -> Result<()> {
+        settle_game::handler(ctx, winner_seat_index, final_pot)
     }
 }
