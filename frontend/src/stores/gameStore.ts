@@ -268,7 +268,16 @@ export const useGameStore = create<GameStore>()(
         },
 
         submitHoleCards: (gameId, cards) => {
+          const { playerId, gameState } = get();
           if (!socket) return;
+
+          if (gameState && playerId) {
+            const updatedPlayers = gameState.players.map((p) =>
+              p.id === playerId ? { ...p, cards } : p,
+            );
+            set({ gameState: { ...gameState, players: updatedPlayers } });
+          }
+
           socket.emit("submit_hole_cards", { gameId, cards });
         },
 
