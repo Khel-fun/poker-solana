@@ -5,10 +5,9 @@
  * Attested Decrypt functionality on Solana.
  */
 
-import {
-  decrypt,
-  AttestedDecryptError,
-} from "@inco/solana-sdk/attested-decrypt";
+import { AttestedDecryptError } from "@inco/solana-sdk/attested-decrypt";
+import { ENCRYPTION_CONSTANTS } from "@inco/solana-sdk/constants";
+import bs58 from "bs58";
 import { PublicKey } from "@solana/web3.js";
 import type { WalletContextState } from "@solana/wallet-adapter-react";
 
@@ -74,6 +73,71 @@ function decodeCardValue(value: string): DecryptedCard {
     suit,
     display: `${ranks[rank]}${suits[suit]}`,
   };
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function signHandle(
+  handle: string,
+  wallet: WalletContextState,
+): Promise<string> {
+  const messageBytes = new TextEncoder().encode(handle);
+  const signatureBytes = await wallet.signMessage!(messageBytes);
+  return bs58.encode(signatureBytes);
+}
+
+async function decryptHandle(
+  handle: string,
+  wallet: WalletContextState,
+): Promise<string> {
+  const address = wallet.publicKey!.toBase58();
+  const signature = await signHandle(handle, wallet);
+  const response = await fetch(ENCRYPTION_CONSTANTS.ATTESTED_DECRYPT_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ handle, address, signature }),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new AttestedDecryptError(
+      `${ENCRYPTION_CONSTANTS.ATTESTED_DECRYPT_ENDPOINT}: ${errorText}`,
+    );
+  }
+  const data = await response.json();
+  if (!data?.plaintext) {
+    throw new AttestedDecryptError("Covalidator returned empty plaintext");
+  }
+  return data.plaintext;
+}
+
+async function decryptWithRetry(
+  handles: string[],
+  wallet: WalletContextState,
+  attempts: number,
+  delayMs: number,
+): Promise<string[]> {
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i++) {
+    if (i > 0) {
+      await sleep(delayMs);
+    }
+    try {
+      const plaintexts: string[] = [];
+      for (const handle of handles) {
+        const plaintext = await decryptHandle(handle, wallet);
+        plaintexts.push(plaintext);
+      }
+      return plaintexts;
+    } catch (error) {
+      console.warn("Decrypt attempt failed", {
+        attempt: i + 1,
+        attempts,
+        error,
+      });
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 /**
@@ -198,14 +262,10 @@ export async function decryptCommunityCards(
   console.log("Decrypting community cards:", { handles, revealCount });
 
   try {
-    // Use Inco's Attested Decrypt
-    const result = await decrypt(handles, {
-      address: wallet.publicKey,
-      signMessage: wallet.signMessage,
-    });
+    const plaintexts = await decryptWithRetry(handles, wallet, 8, 2000);
 
     // Decode the plaintext values (mod 52 to get actual card index)
-    const cards = result.plaintexts.map((plaintext) => {
+    const cards = plaintexts.map((plaintext) => {
       const value = BigInt(plaintext);
       const cardIndex = Number(value % 52n);
       return decodeCardValue(cardIndex.toString());
@@ -270,8 +330,11 @@ export async function decryptHoleCardsFromGame(
     data.slice(SHUFFLED_INDICES_OFFSET, SHUFFLED_INDICES_OFFSET + 5),
   );
 
-  // Find which original pair index ends up at this seat
-  const pairIndex = shuffledIndices[seatIndex] as number;
+  // Find which pair index belongs to this seat (inverse mapping)
+  const pairIndex = shuffledIndices.findIndex((v) => v === seatIndex);
+  if (pairIndex < 0) {
+    throw new Error("Seat not found in shuffled indices");
+  }
 
   // Calculate offset to deal_cards
   const DEAL_CARDS_OFFSET = SHUFFLED_INDICES_OFFSET + 5;
@@ -301,14 +364,15 @@ export async function decryptHoleCardsFromGame(
   }
 
   try {
-    // Use Inco's Attested Decrypt
-    const result = await decrypt([handle1, handle2], {
-      address: wallet.publicKey,
-      signMessage: wallet.signMessage,
-    });
+    const plaintexts = await decryptWithRetry(
+      [handle1, handle2],
+      wallet,
+      8,
+      2000,
+    );
 
     // Decode the plaintext values (mod 52 to get actual card index)
-    const cards = result.plaintexts.map((plaintext) => {
+    const cards = plaintexts.map((plaintext) => {
       const value = BigInt(plaintext);
       const cardIndex = Number(value % 52n);
       return decodeCardValue(cardIndex.toString());
