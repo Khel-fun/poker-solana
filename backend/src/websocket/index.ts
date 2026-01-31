@@ -1,5 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { GameService } from "../services/GameService";
+import { startGameOnChain } from "../services/SolanaService";
 import type {
   ClientToServerEvents,
   ServerToClientEvents,
@@ -16,13 +17,24 @@ const playerToSocket: Map<string, string> = new Map();
 
 export function setupWebSocket(io: GameServer): void {
   io.on("connection", (socket: GameSocket) => {
+  io.on("connection", (socket: GameSocket) => {
     console.log(`Client connected: ${socket.id}`);
 
     // Join game
     socket.on("join_game", ({ gameId, player }) => {
-      const result = GameService.joinGame(gameId, player.id, player.name);
+      const result = GameService.joinGame(
+        gameId,
+        player.id,
+        player.name,
+        player.walletAddress,
+        player.playerSeatAddress,
+      );
 
       if (!result.success) {
+        socket.emit("error", {
+          message: result.error || "Failed to join game",
+          code: result.error || "UNKNOWN",
+        });
         socket.emit("error", {
           message: result.error || "Failed to join game",
           code: result.error || "UNKNOWN",
@@ -34,10 +46,17 @@ export function setupWebSocket(io: GameServer): void {
       socketToPlayer.set(socket.id, player.id);
       playerToSocket.set(player.id, socket.id);
 
+
       // Join socket room
       socket.join(gameId);
 
+
       // Notify all players in the room
+      const joinedPlayer = result.game!.players.find(
+        (p) => p.id === player.id,
+      )!;
+      socket.to(gameId).emit("player_joined", joinedPlayer);
+
       const joinedPlayer = result.game!.players.find(
         (p) => p.id === player.id,
       )!;
@@ -49,17 +68,26 @@ export function setupWebSocket(io: GameServer): void {
         player.id,
       );
       socket.emit("game_state", gameState);
+      const gameState = GameService.getGameStateForPlayer(
+        result.game!,
+        player.id,
+      );
+      socket.emit("game_state", gameState);
     });
 
     // Leave game
+    socket.on("leave_game", ({ gameId }) => {
     socket.on("leave_game", ({ gameId }) => {
       const playerId = socketToPlayer.get(socket.id);
       if (!playerId) return;
 
       const result = GameService.leaveGame(gameId, playerId);
 
+
       if (result.success) {
         socket.leave(gameId);
+        io.to(gameId).emit("player_left", { playerId });
+
         io.to(gameId).emit("player_left", { playerId });
 
         // Clean up mappings
@@ -72,6 +100,42 @@ export function setupWebSocket(io: GameServer): void {
     socket.on("start_game", ({ gameId }) => {
       const playerId = socketToPlayer.get(socket.id);
       if (!playerId) return;
+
+      const canStart = GameService.canStartGame(gameId, playerId);
+
+      if (!canStart.success) {
+        socket.emit("error", {
+          message: canStart.error || "Failed to start game",
+          code: canStart.error || "UNKNOWN",
+        });
+        return;
+      }
+
+      const game = canStart.game!;
+
+      try {
+        const lamportsPerChip = BigInt(1_000_000);
+        const smallBlindAmount =
+          BigInt(game.settings.smallBlind) * lamportsPerChip;
+        const bigBlindAmount =
+          BigInt(game.settings.bigBlind) * lamportsPerChip;
+
+        const onChain = await startGameOnChain({
+          tablePDA: game.tablePDA!,
+          gameId: BigInt(game.tableId!),
+          smallBlindAmount,
+          bigBlindAmount,
+        });
+
+        game.gameAddress = onChain.gamePDA;
+      } catch (error: any) {
+        console.error("Failed to start game on-chain:", error);
+        socket.emit("error", {
+          message: "Failed to start game on-chain",
+          code: "CHAIN_START_FAILED",
+        });
+        return;
+      }
 
       const result = GameService.startGame(gameId, playerId);
 

@@ -9,18 +9,27 @@ interface PlayingCardProps {
   style?: CSSProperties;
 }
 
-const suitSymbols: Record<string, string> = {
-  hearts: '♥',
-  diamonds: '♦',
-  clubs: '♣',
-  spades: '♠',
+const suitToLetter: Record<Card['suit'], string> = {
+  clubs: 'c',
+  diamonds: 'd',
+  hearts: 'h',
+  spades: 's',
 };
 
-const suitColors: Record<string, string> = {
-  hearts: 'text-red-500',
-  diamonds: 'text-red-500',
-  clubs: 'text-gray-900',
-  spades: 'text-gray-900',
+const rankToFile: Record<Card['rank'], string> = {
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+  '7': '7',
+  '8': '8',
+  '9': '9',
+  '10': '10',
+  J: 'j',
+  Q: 'q',
+  K: 'k',
+  A: 'a',
 };
 
 const sizes = {
@@ -35,31 +44,38 @@ export function PlayingCard({ card, hidden = false, size = 'md', style }: Playin
       <div
         className={clsx(
           sizes[size],
-          'rounded-lg bg-gradient-to-br from-blue-800 to-blue-900 border-2 border-blue-700 shadow-lg',
+          'rounded-lg overflow-hidden shadow-lg',
           'flex items-center justify-center'
         )}
         style={style}
       >
-        <div className="w-3/4 h-3/4 rounded border border-blue-600 bg-blue-800/50" />
+        <img
+          src="/cards/back_of_card.jpg"
+          alt="Card back"
+          className="w-full h-full object-cover"
+          draggable={false}
+        />
       </div>
     );
   }
+
+  const cardSrc = `/cards/${rankToFile[card.rank]}${suitToLetter[card.suit]}.png`;
 
   return (
     <div
       className={clsx(
         sizes[size],
-        'rounded-lg bg-white border border-gray-300 shadow-lg',
-        'flex flex-col items-center justify-center p-1'
+        'rounded-lg overflow-hidden shadow-lg',
+        'flex items-center justify-center'
       )}
       style={style}
     >
-      <span className={clsx('font-bold', suitColors[card.suit])}>
-        {card.rank}
-      </span>
-      <span className={clsx('text-2xl leading-none', suitColors[card.suit])}>
-        {suitSymbols[card.suit]}
-      </span>
+      <img
+        src={cardSrc}
+        alt={`${card.rank} of ${card.suit}`}
+        className="w-full h-full object-contain"
+        draggable={false}
+      />
     </div>
   );
 }

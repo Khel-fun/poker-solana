@@ -1,24 +1,34 @@
-import { v4 as uuidv4 } from 'uuid';
-import type { 
-  GameState, 
-  GameSettings, 
-  Player, 
-  PlayerAction, 
+import { v4 as uuidv4 } from "uuid";
+import type {
+  GameState,
+  GameSettings,
+  Player,
+  PlayerAction,
   GameListItem,
   Card,
   Winner,
   SidePot,
   ActionType,
-  GameRound
-} from '../../../shared/types';
-import { DeckService } from './DeckService';
-import { HandEvaluator } from './HandEvaluator';
+  GameRound,
+} from "../../../shared/types";
+import { DeckService } from "./DeckService";
+import { HandEvaluator } from "./HandEvaluator";
 
 class GameServiceClass {
   private games: Map<string, GameState> = new Map();
   private playerToGame: Map<string, string> = new Map();
 
-  createGame(hostId: string, hostName: string, name: string, settings: GameSettings): { gameId: string; inviteCode: string } {
+  createGame(
+    hostId: string,
+    hostName: string,
+    name: string,
+    settings: GameSettings,
+    hostWalletAddress?: string,
+    hostPlayerSeatAddress?: string,
+    tablePDA?: string,
+    tableId?: string,
+    gameAddress?: string,
+  ): { gameId: string; inviteCode: string } {
     const gameId = uuidv4();
     const inviteCode = this.generateInviteCode();
 
@@ -33,15 +43,20 @@ class GameServiceClass {
       isAllIn: false,
       isConnected: true,
       seatIndex: 0,
+      walletAddress: hostWalletAddress,
+      playerSeatAddress: hostPlayerSeatAddress,
     };
 
     const gameState: GameState = {
       id: gameId,
       name,
       hostId,
-      status: 'waiting',
+      status: "waiting",
       settings,
       players: [host],
+      tablePDA,
+      tableId,
+      gameAddress,
       deck: [],
       communityCards: [],
       pot: 0,
@@ -50,7 +65,7 @@ class GameServiceClass {
       dealerIndex: 0,
       smallBlindIndex: 0,
       bigBlindIndex: 0,
-      round: 'preflop',
+      round: "preflop",
       currentBet: 0,
       minRaise: settings.bigBlind,
       lastRaiseAmount: settings.bigBlind,
@@ -67,16 +82,23 @@ class GameServiceClass {
     return this.games.get(gameId);
   }
 
+  setTablePDA(gameId: string, tablePDA: string): boolean {
+    const game = this.games.get(gameId);
+    if (!game) return false;
+    game.tablePDA = tablePDA;
+    return true;
+  }
+
   getActiveGames(): GameListItem[] {
     const activeGames: GameListItem[] = [];
-    
+
     this.games.forEach((game) => {
-      if (game.status === 'waiting') {
-        const host = game.players.find(p => p.id === game.hostId);
+      if (game.status === "waiting") {
+        const host = game.players.find((p) => p.id === game.hostId);
         activeGames.push({
           id: game.id,
           name: game.name,
-          hostName: host?.name || 'Unknown',
+          hostName: host?.name || "Unknown",
           playerCount: game.players.length,
           maxPlayers: game.settings.maxPlayers,
           settings: game.settings,
@@ -87,28 +109,42 @@ class GameServiceClass {
     return activeGames;
   }
 
-  joinGame(gameId: string, playerId: string, playerName: string): { success: boolean; error?: string; game?: GameState } {
+  joinGame(
+    gameId: string,
+    playerId: string,
+    playerName: string,
+    walletAddress?: string,
+    playerSeatAddress?: string,
+  ): { success: boolean; error?: string; game?: GameState } {
     const game = this.games.get(gameId);
-    
+
     if (!game) {
-      return { success: false, error: 'GAME_NOT_FOUND' };
+      return { success: false, error: "GAME_NOT_FOUND" };
     }
-    
-    if (game.status !== 'waiting') {
-      return { success: false, error: 'GAME_STARTED' };
+
+    if (game.status !== "waiting") {
+      return { success: false, error: "GAME_STARTED" };
     }
-    
+
     // If player is already in the game (e.g., host reconnecting), just return success
-    if (game.players.some(p => p.id === playerId)) {
+    const existingPlayer = game.players.find((p) => p.id === playerId);
+    if (existingPlayer) {
+      if (walletAddress) {
+        existingPlayer.walletAddress = walletAddress;
+      }
+      if (playerSeatAddress) {
+        existingPlayer.playerSeatAddress = playerSeatAddress;
+      }
+      existingPlayer.isConnected = true;
       return { success: true, game };
     }
-    
+
     if (game.players.length >= game.settings.maxPlayers) {
-      return { success: false, error: 'GAME_FULL' };
+      return { success: false, error: "GAME_FULL" };
     }
 
     const seatIndex = this.findNextAvailableSeat(game);
-    
+
     const player: Player = {
       id: playerId,
       name: playerName,
@@ -120,6 +156,8 @@ class GameServiceClass {
       isAllIn: false,
       isConnected: true,
       seatIndex,
+      walletAddress,
+      playerSeatAddress,
     };
 
     game.players.push(player);
@@ -128,18 +166,21 @@ class GameServiceClass {
     return { success: true, game };
   }
 
-  leaveGame(gameId: string, playerId: string): { success: boolean; game?: GameState } {
+  leaveGame(
+    gameId: string,
+    playerId: string,
+  ): { success: boolean; game?: GameState } {
     const game = this.games.get(gameId);
-    
+
     if (!game) {
       return { success: false };
     }
 
-    game.players = game.players.filter(p => p.id !== playerId);
+    game.players = game.players.filter((p) => p.id !== playerId);
     this.playerToGame.delete(playerId);
 
     // If host leaves and game hasn't started, assign new host or delete game
-    if (playerId === game.hostId && game.status === 'waiting') {
+    if (playerId === game.hostId && game.status === "waiting") {
       if (game.players.length > 0) {
         game.hostId = game.players[0].id;
       } else {
@@ -151,23 +192,55 @@ class GameServiceClass {
     return { success: true, game };
   }
 
-  startGame(gameId: string, playerId: string): { success: boolean; error?: string; game?: GameState } {
+  startGame(
+    gameId: string,
+    playerId: string,
+  ): { success: boolean; error?: string; game?: GameState } {
     const game = this.games.get(gameId);
-    
+
     if (!game) {
-      return { success: false, error: 'GAME_NOT_FOUND' };
-    }
-    
-    if (game.hostId !== playerId) {
-      return { success: false, error: 'NOT_HOST' };
-    }
-    
-    if (game.players.length < 2) {
-      return { success: false, error: 'MIN_PLAYERS_NOT_MET' };
+      return { success: false, error: "GAME_NOT_FOUND" };
     }
 
-    game.status = 'playing';
+    if (game.hostId !== playerId) {
+      return { success: false, error: "NOT_HOST" };
+    }
+
+    if (game.players.length < 2) {
+      return { success: false, error: "MIN_PLAYERS_NOT_MET" };
+    }
+
+    game.status = "playing";
     this.startNewHand(game);
+
+    return { success: true, game };
+  }
+
+  canStartGame(
+    gameId: string,
+    playerId: string,
+  ): { success: boolean; error?: string; game?: GameState } {
+    const game = this.games.get(gameId);
+
+    if (!game) {
+      return { success: false, error: "GAME_NOT_FOUND" };
+    }
+
+    if (game.hostId !== playerId) {
+      return { success: false, error: "NOT_HOST" };
+    }
+
+    if (game.players.length < 2) {
+      return { success: false, error: "MIN_PLAYERS_NOT_MET" };
+    }
+
+    if (!game.tablePDA) {
+      return { success: false, error: "TABLE_NOT_READY" };
+    }
+
+    if (!game.tableId) {
+      return { success: false, error: "TABLE_ID_MISSING" };
+    }
 
     return { success: true, game };
   }
@@ -186,7 +259,7 @@ class GameServiceClass {
     game.communityCards = [];
     game.pot = 0;
     game.sidePots = [];
-    game.round = 'preflop';
+    game.round = "preflop";
     game.currentBet = 0;
     game.minRaise = game.settings.bigBlind;
     game.lastRaiseAmount = game.settings.bigBlind;
@@ -194,16 +267,25 @@ class GameServiceClass {
 
     // Advance dealer
     game.dealerIndex = this.getNextActivePlayerIndex(game, game.dealerIndex);
-    
+
     // Set blinds
-    const activePlayers = game.players.filter(p => p.chips > 0);
+    const activePlayers = game.players.filter((p) => p.chips > 0);
     if (activePlayers.length === 2) {
       // Heads up: dealer is small blind
       game.smallBlindIndex = game.dealerIndex;
-      game.bigBlindIndex = this.getNextActivePlayerIndex(game, game.smallBlindIndex);
+      game.bigBlindIndex = this.getNextActivePlayerIndex(
+        game,
+        game.smallBlindIndex,
+      );
     } else {
-      game.smallBlindIndex = this.getNextActivePlayerIndex(game, game.dealerIndex);
-      game.bigBlindIndex = this.getNextActivePlayerIndex(game, game.smallBlindIndex);
+      game.smallBlindIndex = this.getNextActivePlayerIndex(
+        game,
+        game.dealerIndex,
+      );
+      game.bigBlindIndex = this.getNextActivePlayerIndex(
+        game,
+        game.smallBlindIndex,
+      );
     }
 
     // Post blinds
@@ -224,63 +306,74 @@ class GameServiceClass {
     }
 
     // Set first player to act (left of big blind)
-    game.currentPlayerIndex = this.getNextActivePlayerIndex(game, game.bigBlindIndex);
+    game.currentPlayerIndex = this.getNextActivePlayerIndex(
+      game,
+      game.bigBlindIndex,
+    );
   }
 
-  private postBlind(game: GameState, playerIndex: number, amount: number): void {
+  private postBlind(
+    game: GameState,
+    playerIndex: number,
+    amount: number,
+  ): void {
     const player = game.players[playerIndex];
     const actualAmount = Math.min(amount, player.chips);
-    
+
     player.chips -= actualAmount;
     player.bet = actualAmount;
     player.totalBet = actualAmount;
     game.pot += actualAmount;
-    
+
     if (player.chips === 0) {
       player.isAllIn = true;
     }
   }
 
-  handlePlayerAction(gameId: string, playerId: string, action: PlayerAction): { 
-    success: boolean; 
-    error?: string; 
+  handlePlayerAction(
+    gameId: string,
+    playerId: string,
+    action: PlayerAction,
+  ): {
+    success: boolean;
+    error?: string;
     game?: GameState;
     handComplete?: boolean;
     winners?: Winner[];
   } {
     const game = this.games.get(gameId);
-    
+
     if (!game) {
-      return { success: false, error: 'GAME_NOT_FOUND' };
+      return { success: false, error: "GAME_NOT_FOUND" };
     }
 
-    const playerIndex = game.players.findIndex(p => p.id === playerId);
+    const playerIndex = game.players.findIndex((p) => p.id === playerId);
     if (playerIndex === -1) {
-      return { success: false, error: 'PLAYER_NOT_FOUND' };
+      return { success: false, error: "PLAYER_NOT_FOUND" };
     }
 
     if (playerIndex !== game.currentPlayerIndex) {
-      return { success: false, error: 'NOT_YOUR_TURN' };
+      return { success: false, error: "NOT_YOUR_TURN" };
     }
 
     const player = game.players[playerIndex];
     const validActions = this.getValidActions(game, player);
-    
+
     if (!validActions.includes(action.type)) {
-      return { success: false, error: 'INVALID_ACTION' };
+      return { success: false, error: "INVALID_ACTION" };
     }
 
     // Execute action
     switch (action.type) {
-      case 'fold':
+      case "fold":
         player.folded = true;
         break;
-        
-      case 'check':
+
+      case "check":
         // No action needed
         break;
-        
-      case 'call':
+
+      case "call":
         const callAmount = Math.min(game.currentBet - player.bet, player.chips);
         player.chips -= callAmount;
         player.bet += callAmount;
@@ -288,18 +381,18 @@ class GameServiceClass {
         game.pot += callAmount;
         if (player.chips === 0) player.isAllIn = true;
         break;
-        
-      case 'raise':
+
+      case "raise":
         if (!action.amount) {
-          return { success: false, error: 'INVALID_ACTION' };
+          return { success: false, error: "INVALID_ACTION" };
         }
         const raiseTotal = action.amount;
         const raiseAmount = raiseTotal - player.bet;
-        
+
         if (raiseAmount > player.chips) {
-          return { success: false, error: 'INSUFFICIENT_CHIPS' };
+          return { success: false, error: "INSUFFICIENT_CHIPS" };
         }
-        
+
         player.chips -= raiseAmount;
         player.bet = raiseTotal;
         player.totalBet += raiseAmount;
@@ -309,15 +402,15 @@ class GameServiceClass {
         game.minRaise = game.currentBet + game.lastRaiseAmount;
         if (player.chips === 0) player.isAllIn = true;
         break;
-        
-      case 'all-in':
+
+      case "all-in":
         const allInAmount = player.chips;
         player.bet += allInAmount;
         player.totalBet += allInAmount;
         game.pot += allInAmount;
         player.chips = 0;
         player.isAllIn = true;
-        
+
         if (player.bet > game.currentBet) {
           game.lastRaiseAmount = player.bet - game.currentBet;
           game.currentBet = player.bet;
@@ -327,24 +420,28 @@ class GameServiceClass {
     }
 
     // Check if hand is over
-    const activePlayers = game.players.filter(p => !p.folded && (p.chips > 0 || p.isAllIn));
-    const nonFoldedPlayers = game.players.filter(p => !p.folded);
-    
+    const activePlayers = game.players.filter(
+      (p) => !p.folded && (p.chips > 0 || p.isAllIn),
+    );
+    const nonFoldedPlayers = game.players.filter((p) => !p.folded);
+
     if (nonFoldedPlayers.length === 1) {
       // Everyone else folded
       const winner = nonFoldedPlayers[0];
-      const winners: Winner[] = [{
-        playerId: winner.id,
-        amount: game.pot,
-        handRank: 'Last player standing'
-      }];
+      const winners: Winner[] = [
+        {
+          playerId: winner.id,
+          amount: game.pot,
+          handRank: "Last player standing",
+        },
+      ];
       winner.chips += game.pot;
       game.pot = 0;
       game.winners = winners;
-      
+
       // Start new hand or end game
       this.checkGameEnd(game);
-      
+
       return { success: true, game, handComplete: true, winners };
     }
 
@@ -352,27 +449,42 @@ class GameServiceClass {
     if (this.isBettingRoundComplete(game)) {
       const result = this.advanceRound(game);
       if (result.handComplete) {
-        return { success: true, game, handComplete: true, winners: result.winners };
+        return {
+          success: true,
+          game,
+          handComplete: true,
+          winners: result.winners,
+        };
       }
     } else {
       // Move to next player
-      game.currentPlayerIndex = this.getNextActivePlayerIndex(game, game.currentPlayerIndex);
+      game.currentPlayerIndex = this.getNextActivePlayerIndex(
+        game,
+        game.currentPlayerIndex,
+      );
     }
 
     return { success: true, game };
   }
 
   private isBettingRoundComplete(game: GameState): boolean {
-    const activePlayers = game.players.filter(p => !p.folded && !p.isAllIn);
-    
+    const activePlayers = game.players.filter((p) => !p.folded && !p.isAllIn);
+
     if (activePlayers.length === 0) return true;
-    if (activePlayers.length === 1 && game.players.filter(p => !p.folded).length === 1) return true;
-    
+    if (
+      activePlayers.length === 1 &&
+      game.players.filter((p) => !p.folded).length === 1
+    )
+      return true;
+
     // All active players must have matched the current bet
-    return activePlayers.every(p => p.bet === game.currentBet);
+    return activePlayers.every((p) => p.bet === game.currentBet);
   }
 
-  private advanceRound(game: GameState): { handComplete: boolean; winners?: Winner[] } {
+  private advanceRound(game: GameState): {
+    handComplete: boolean;
+    winners?: Winner[];
+  } {
     // Reset bets for new round
     for (const player of game.players) {
       player.bet = 0;
@@ -381,33 +493,42 @@ class GameServiceClass {
     game.minRaise = game.settings.bigBlind;
     game.lastRaiseAmount = game.settings.bigBlind;
 
-    const nonFoldedPlayers = game.players.filter(p => !p.folded);
-    const activePlayers = nonFoldedPlayers.filter(p => !p.isAllIn);
+    const nonFoldedPlayers = game.players.filter((p) => !p.folded);
+    const activePlayers = nonFoldedPlayers.filter((p) => !p.isAllIn);
 
     switch (game.round) {
-      case 'preflop':
-        game.round = 'flop';
-        const { dealt: flop, remaining: afterFlop } = DeckService.dealCards(game.deck, 3);
+      case "preflop":
+        game.round = "flop";
+        const { dealt: flop, remaining: afterFlop } = DeckService.dealCards(
+          game.deck,
+          3,
+        );
         game.communityCards = flop;
         game.deck = afterFlop;
         break;
-        
-      case 'flop':
-        game.round = 'turn';
-        const { dealt: turn, remaining: afterTurn } = DeckService.dealCards(game.deck, 1);
+
+      case "flop":
+        game.round = "turn";
+        const { dealt: turn, remaining: afterTurn } = DeckService.dealCards(
+          game.deck,
+          1,
+        );
         game.communityCards.push(...turn);
         game.deck = afterTurn;
         break;
-        
-      case 'turn':
-        game.round = 'river';
-        const { dealt: river, remaining: afterRiver } = DeckService.dealCards(game.deck, 1);
+
+      case "turn":
+        game.round = "river";
+        const { dealt: river, remaining: afterRiver } = DeckService.dealCards(
+          game.deck,
+          1,
+        );
         game.communityCards.push(...river);
         game.deck = afterRiver;
         break;
-        
-      case 'river':
-        game.round = 'showdown';
+
+      case "river":
+        game.round = "showdown";
         return this.handleShowdown(game);
     }
 
@@ -419,48 +540,56 @@ class GameServiceClass {
         game.communityCards.push(...dealt);
         game.deck = remaining;
       }
-      game.round = 'showdown';
+      game.round = "showdown";
       return this.handleShowdown(game);
     }
 
     // Set first player to act (left of dealer)
-    game.currentPlayerIndex = this.getNextActivePlayerIndex(game, game.dealerIndex);
+    game.currentPlayerIndex = this.getNextActivePlayerIndex(
+      game,
+      game.dealerIndex,
+    );
 
     return { handComplete: false };
   }
 
-  private handleShowdown(game: GameState): { handComplete: boolean; winners: Winner[] } {
-    const nonFoldedPlayers = game.players.filter(p => !p.folded);
-    
+  private handleShowdown(game: GameState): {
+    handComplete: boolean;
+    winners: Winner[];
+  } {
+    const nonFoldedPlayers = game.players.filter((p) => !p.folded);
+
     // Calculate side pots if needed
     const pots = this.calculatePots(game);
     const allWinners: Winner[] = [];
 
     for (const pot of pots) {
-      const eligiblePlayers = nonFoldedPlayers.filter(p => pot.eligiblePlayerIds.includes(p.id));
-      
+      const eligiblePlayers = nonFoldedPlayers.filter((p) =>
+        pot.eligiblePlayerIds.includes(p.id),
+      );
+
       if (eligiblePlayers.length === 1) {
         const winner = eligiblePlayers[0];
         winner.chips += pot.amount;
         allWinners.push({
           playerId: winner.id,
           amount: pot.amount,
-          handRank: 'Uncontested'
+          handRank: "Uncontested",
         });
       } else {
         const winnerResults = HandEvaluator.findWinners(
-          eligiblePlayers.map(p => ({ id: p.id, cards: p.cards })),
-          game.communityCards
+          eligiblePlayers.map((p) => ({ id: p.id, cards: p.cards })),
+          game.communityCards,
         );
-        
+
         const splitAmount = Math.floor(pot.amount / winnerResults.length);
         for (const result of winnerResults) {
-          const player = game.players.find(p => p.id === result.playerId)!;
+          const player = game.players.find((p) => p.id === result.playerId)!;
           player.chips += splitAmount;
           allWinners.push({
             playerId: result.playerId,
             amount: splitAmount,
-            handRank: result.handRank
+            handRank: result.handRank,
           });
         }
       }
@@ -468,25 +597,27 @@ class GameServiceClass {
 
     game.pot = 0;
     game.winners = allWinners;
-    
+
     this.checkGameEnd(game);
 
     return { handComplete: true, winners: allWinners };
   }
 
   private calculatePots(game: GameState): SidePot[] {
-    const nonFoldedPlayers = game.players.filter(p => !p.folded);
-    const allInAmounts = [...new Set(
-      nonFoldedPlayers
-        .filter(p => p.isAllIn)
-        .map(p => p.totalBet)
-    )].sort((a, b) => a - b);
+    const nonFoldedPlayers = game.players.filter((p) => !p.folded);
+    const allInAmounts = [
+      ...new Set(
+        nonFoldedPlayers.filter((p) => p.isAllIn).map((p) => p.totalBet),
+      ),
+    ].sort((a, b) => a - b);
 
     if (allInAmounts.length === 0) {
-      return [{
-        amount: game.pot,
-        eligiblePlayerIds: nonFoldedPlayers.map(p => p.id)
-      }];
+      return [
+        {
+          amount: game.pot,
+          eligiblePlayerIds: nonFoldedPlayers.map((p) => p.id),
+        },
+      ];
     }
 
     const pots: SidePot[] = [];
@@ -494,27 +625,32 @@ class GameServiceClass {
 
     for (const amount of allInAmounts) {
       const contribution = amount - previousAmount;
-      const eligiblePlayers = nonFoldedPlayers.filter(p => p.totalBet >= amount);
-      const potAmount = contribution * game.players.filter(p => p.totalBet >= amount).length;
-      
+      const eligiblePlayers = nonFoldedPlayers.filter(
+        (p) => p.totalBet >= amount,
+      );
+      const potAmount =
+        contribution * game.players.filter((p) => p.totalBet >= amount).length;
+
       if (potAmount > 0) {
         pots.push({
           amount: potAmount,
-          eligiblePlayerIds: eligiblePlayers.map(p => p.id)
+          eligiblePlayerIds: eligiblePlayers.map((p) => p.id),
         });
       }
       previousAmount = amount;
     }
 
     // Main pot for remaining
-    const maxBet = Math.max(...nonFoldedPlayers.map(p => p.totalBet));
+    const maxBet = Math.max(...nonFoldedPlayers.map((p) => p.totalBet));
     if (maxBet > previousAmount) {
-      const eligiblePlayers = nonFoldedPlayers.filter(p => p.totalBet === maxBet);
+      const eligiblePlayers = nonFoldedPlayers.filter(
+        (p) => p.totalBet === maxBet,
+      );
       const remaining = game.pot - pots.reduce((sum, p) => sum + p.amount, 0);
       if (remaining > 0) {
         pots.push({
           amount: remaining,
-          eligiblePlayerIds: eligiblePlayers.map(p => p.id)
+          eligiblePlayerIds: eligiblePlayers.map((p) => p.id),
         });
       }
     }
@@ -523,14 +659,14 @@ class GameServiceClass {
   }
 
   private checkGameEnd(game: GameState): void {
-    const playersWithChips = game.players.filter(p => p.chips > 0);
-    
+    const playersWithChips = game.players.filter((p) => p.chips > 0);
+
     if (playersWithChips.length === 1) {
-      game.status = 'finished';
+      game.status = "finished";
     } else {
       // Start new hand after a delay (handled by websocket)
       setTimeout(() => {
-        if (game.status === 'playing') {
+        if (game.status === "playing") {
           this.startNewHand(game);
         }
       }, 5000);
@@ -538,33 +674,36 @@ class GameServiceClass {
   }
 
   getValidActions(game: GameState, player: Player): ActionType[] {
-    const actions: ActionType[] = ['fold'];
-    
+    const actions: ActionType[] = ["fold"];
+
     if (player.chips === 0) return [];
-    
+
     const toCall = game.currentBet - player.bet;
-    
+
     if (toCall === 0) {
-      actions.push('check');
+      actions.push("check");
     }
-    
+
     if (toCall > 0 && toCall <= player.chips) {
-      actions.push('call');
+      actions.push("call");
     }
-    
+
     if (player.chips > toCall) {
-      actions.push('raise');
+      actions.push("raise");
     }
-    
-    actions.push('all-in');
-    
+
+    actions.push("all-in");
+
     return actions;
   }
 
-  private getNextActivePlayerIndex(game: GameState, currentIndex: number): number {
+  private getNextActivePlayerIndex(
+    game: GameState,
+    currentIndex: number,
+  ): number {
     let nextIndex = (currentIndex + 1) % game.players.length;
     let attempts = 0;
-    
+
     while (attempts < game.players.length) {
       const player = game.players[nextIndex];
       if (!player.folded && !player.isAllIn && player.chips > 0) {
@@ -573,12 +712,12 @@ class GameServiceClass {
       nextIndex = (nextIndex + 1) % game.players.length;
       attempts++;
     }
-    
+
     return currentIndex;
   }
 
   private findNextAvailableSeat(game: GameState): number {
-    const takenSeats = new Set(game.players.map(p => p.seatIndex));
+    const takenSeats = new Set(game.players.map((p) => p.seatIndex));
     for (let i = 0; i < game.settings.maxPlayers; i++) {
       if (!takenSeats.has(i)) return i;
     }
@@ -597,13 +736,16 @@ class GameServiceClass {
     return undefined;
   }
 
-  reconnectPlayer(gameId: string, playerId: string): { success: boolean; game?: GameState } {
+  reconnectPlayer(
+    gameId: string,
+    playerId: string,
+  ): { success: boolean; game?: GameState } {
     const game = this.games.get(gameId);
     if (!game) return { success: false };
-    
-    const player = game.players.find(p => p.id === playerId);
+
+    const player = game.players.find((p) => p.id === playerId);
     if (!player) return { success: false };
-    
+
     player.isConnected = true;
     return { success: true, game };
   }
@@ -611,7 +753,7 @@ class GameServiceClass {
   disconnectPlayer(playerId: string): void {
     const game = this.getGameForPlayer(playerId);
     if (game) {
-      const player = game.players.find(p => p.id === playerId);
+      const player = game.players.find((p) => p.id === playerId);
       if (player) {
         player.isConnected = false;
       }
@@ -620,8 +762,8 @@ class GameServiceClass {
 
   getGameStateForPlayer(game: GameState, playerId: string): GameState {
     // Hide other players' cards unless showdown
-    const sanitizedPlayers = game.players.map(p => {
-      if (p.id === playerId || game.round === 'showdown') {
+    const sanitizedPlayers = game.players.map((p) => {
+      if (p.id === playerId || game.round === "showdown") {
         return p;
       }
       return { ...p, cards: [] };

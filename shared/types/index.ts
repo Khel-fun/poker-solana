@@ -33,6 +33,10 @@ export interface Player {
   isAllIn: boolean;
   isConnected: boolean;
   seatIndex: number;
+
+  // Solana blockchain fields
+  walletAddress?: string; // Player's Solana wallet public key (base58)
+  playerSeatAddress?: string; // PlayerSeat PDA for this player (base58)
 }
 
 // Game Settings
@@ -88,6 +92,11 @@ export interface GameState {
   settings: GameSettings;
   players: Player[];
 
+  // Blockchain fields
+  tablePDA?: string; // Legacy field, keep for compatibility
+  tableId?: string; // Legacy field, keep for compatibility
+  gameAddress?: string; // PokerGame PDA for this game (base58)
+
   // Active game state
   deck: Card[];
   communityCards: Card[];
@@ -135,7 +144,12 @@ export interface GameListItem {
 export interface ClientToServerEvents {
   join_game: (data: {
     gameId: string;
-    player: { id: string; name: string };
+    player: {
+      id: string;
+      name: string;
+      walletAddress?: string;
+      playerSeatAddress?: string;
+    };
   }) => void;
   leave_game: (data: { gameId: string }) => void;
   start_game: (data: { gameId: string }) => void;
@@ -162,7 +176,30 @@ export interface ServerToClientEvents {
     playerChips: number;
     pot: number;
   }) => void;
+  player_turn: (data: {
+    playerId: string;
+    timeRemaining: number;
+    validActions: ActionType[];
+  }) => void;
+  player_acted: (data: {
+    playerId: string;
+    action: PlayerAction;
+    playerChips: number;
+    pot: number;
+  }) => void;
   pot_updated: (data: { pot: number; sidePots: SidePot[] }) => void;
+  hand_complete: (data: {
+    winners: Winner[];
+    showdown: { playerId: string; cards: Card[]; handRank: string }[];
+  }) => void;
+  game_over: (data: {
+    finalStandings: {
+      playerId: string;
+      name: string;
+      chips: number;
+      position: number;
+    }[];
+  }) => void;
   hand_complete: (data: {
     winners: Winner[];
     showdown: { playerId: string; cards: Card[]; handRank: string }[];
@@ -182,6 +219,12 @@ export interface ServerToClientEvents {
     message: string;
     timestamp: Date;
   }) => void;
+  chat_received: (data: {
+    playerId: string;
+    playerName: string;
+    message: string;
+    timestamp: Date;
+  }) => void;
   timer_update: (data: { timeRemaining: number }) => void;
 }
 
@@ -189,6 +232,9 @@ export interface ServerToClientEvents {
 export interface CreateGameResponse {
   gameId: string;
   inviteCode: string;
+  tablePDA?: string;
+  tableId?: string;
+  backendPublicKey?: string;
 }
 
 export interface CreateGameRequest {
@@ -196,6 +242,11 @@ export interface CreateGameRequest {
   hostName: string;
   name: string;
   settings: GameSettings;
+  hostWalletAddress?: string;
+  hostPlayerSeatAddress?: string;
+  tablePDA?: string;
+  tableId?: string;
+  gameAddress?: string;
 }
 
 export interface JoinGameRequest {
@@ -205,6 +256,16 @@ export interface JoinGameRequest {
 
 // Error Codes
 export type ErrorCode =
+  | "GAME_NOT_FOUND"
+  | "GAME_FULL"
+  | "GAME_STARTED"
+  | "NOT_HOST"
+  | "NOT_YOUR_TURN"
+  | "INVALID_ACTION"
+  | "INSUFFICIENT_CHIPS"
+  | "PLAYER_NOT_FOUND"
+  | "ALREADY_JOINED"
+  | "MIN_PLAYERS_NOT_MET";
   | "GAME_NOT_FOUND"
   | "GAME_FULL"
   | "GAME_STARTED"
