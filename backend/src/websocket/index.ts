@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { GameService } from "../services/GameService";
-import { startGameOnChain } from "../services/SolanaService";
+import { startGameOnChain } from "../services/PokerChainService";
 import type {
   ClientToServerEvents,
   ServerToClientEvents,
@@ -106,11 +106,13 @@ export function setupWebSocket(io: GameServer): void {
           bigBlindAmount,
         });
 
-        game.gameAddress = onChain.gamePDA;
+        game.gameAddress = onChain.gameAddress;
       } catch (error: any) {
         console.error("Failed to start game on-chain:", error);
+        const errorMessage =
+          error?.message || "Failed to start game on-chain";
         socket.emit("error", {
-          message: "Failed to start game on-chain",
+          message: `Failed to start game on-chain: ${errorMessage}`,
           code: "CHAIN_START_FAILED",
         });
         return;
