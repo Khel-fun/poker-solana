@@ -1,10 +1,12 @@
 pub mod player_seat;
 pub mod poker_game;
 pub mod poker_table;
+pub mod random_state;
 
 pub use player_seat::PlayerSeat;
 pub use poker_game::PokerGame;
 pub use poker_table::PokerTable;
+pub use random_state::RandomState;
 
 use anchor_lang::prelude::*;
 
