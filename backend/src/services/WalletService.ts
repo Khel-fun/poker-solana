@@ -11,6 +11,7 @@ import {
   createKeyPairSignerFromPrivateKeyBytes,
   sendAndConfirmTransactionFactory,
 } from "@solana/kit";
+import bs58 from "bs58";
 
 export type Client = {
   rpc: Rpc<SolanaRpcApi>;
@@ -34,11 +35,37 @@ export async function createClient(): Promise<Client> {
     const rpcSubscriptions = createSolanaRpcSubscriptions(rpcSubscriptionsUrl);
 
     // Initialize Wallet
-    const privateKey = process.env.PRIVATE_KEY;
-    if (!privateKey) {
-      throw new Error("PRIVATE_KEY environment variable is not set");
+    const privateKeyBase58 = process.env.BACKEND_PRIVATEKEY;
+    const privateKeyEnv = process.env.PRIVATE_KEY;
+    let key: Uint8Array | undefined;
+
+    if (privateKeyBase58) {
+      key = bs58.decode(privateKeyBase58);
+    } else if (privateKeyEnv) {
+      try {
+        key = bs58.decode(privateKeyEnv);
+      } catch {
+        key = Uint8Array.from(Buffer.from(privateKeyEnv, "base64"));
+      }
     }
-    const key: Uint8Array = Uint8Array.from(Buffer.from(privateKey, "base64"));
+
+    if (!key) {
+      throw new Error(
+        "BACKEND_PRIVATEKEY or PRIVATE_KEY environment variable is not set",
+      );
+    }
+
+    // @solana/kit expects a 32-byte private key seed.
+    if (key.length === 64 || key.length === 66) {
+      key = key.slice(0, 32);
+    }
+
+    if (key.length !== 32) {
+      throw new Error(
+        `Invalid private key length: ${key.length}. Expected 32 bytes.`,
+      );
+    }
+
     const wallet = await createKeyPairSignerFromPrivateKeyBytes(key);
 
     const sendAndConfirmTransaction = sendAndConfirmTransactionFactory({
@@ -57,3 +84,8 @@ export async function createClient(): Promise<Client> {
 }
 
 export const walletClient = createClient();
+
+export async function getBackendPublicKey(): Promise<string> {
+  const current = await createClient();
+  return String(current.wallet.address);
+}

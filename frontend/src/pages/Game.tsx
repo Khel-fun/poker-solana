@@ -1,14 +1,18 @@
 import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { useGameStore } from "../stores/gameStore";
 import { PokerTable } from "../components/game/PokerTable";
 import { PlayingCard } from "../components/game/PlayingCard";
 import { Loader2, Trophy } from "lucide-react";
-import { Navbar } from '../components/layout/Navbar';
+import { Navbar } from "../components/layout/Navbar";
+import { useSolanaPoker } from "../hooks/useSolanaPoker";
 
 export function Game() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
+  const { publicKey } = useWallet();
+  const { settleGame: settleGameOnBlockchain } = useSolanaPoker();
   const {
     playerId,
     gameState,
@@ -18,10 +22,13 @@ export function Game() {
     winners,
     showdown,
     isConnected,
+    isSettlingGame,
+    error,
     connect,
     joinGame,
     performAction,
-    clearWinners,
+    settleGameOnChain,
+    clearError,
   } = useGameStore();
 
   useEffect(() => {
@@ -37,9 +44,17 @@ export function Game() {
 
   useEffect(() => {
     if (isConnected && gameId && !gameState) {
-      joinGame(gameId);
+      if (!publicKey) {
+        console.warn("⚠️ Wallet not connected - cannot join game");
+        useGameStore.setState({
+          error: "Please connect your wallet to join the game",
+        });
+        return;
+      }
+      console.log("✅ Joining game with wallet:", publicKey.toBase58());
+      joinGame(gameId, publicKey.toBase58());
     }
-  }, [isConnected, gameId, gameState, joinGame]);
+  }, [isConnected, gameId, gameState, publicKey, joinGame]);
 
   useEffect(() => {
     if (gameState?.status === "waiting") {
@@ -47,7 +62,60 @@ export function Game() {
     }
   }, [gameState?.status, gameId, navigate]);
 
-  if (!gameState || gameState.status === 'waiting') {
+  // Expose game state globally for useSolanaPoker hook
+  useEffect(() => {
+    if (gameState) {
+      (window as any).__gameState = gameState;
+    }
+  }, [gameState]);
+
+  const handleSettleGame = async () => {
+    if (!winners || winners.length === 0 || !gameState) {
+      return;
+    }
+
+    console.log("🎯 Settling game - Current game state:", {
+      gameId: gameState.id,
+      players: gameState.players.map((p) => ({
+        id: p.id,
+        name: p.name,
+        seatIndex: p.seatIndex,
+        walletAddress: p.walletAddress,
+        playerSeatAddress: p.playerSeatAddress,
+      })),
+      winners,
+    });
+
+    // For now, we'll settle with the first winner
+    // In a real implementation, you might need to handle multiple winners differently
+    const winner = winners[0];
+    const winnerPlayer = gameState.players.find(
+      (p) => p.id === winner.playerId,
+    );
+
+    if (!winnerPlayer) {
+      clearError();
+      useGameStore.setState({ error: "Winner player not found" });
+      return;
+    }
+
+    console.log("🏆 Winner details:", {
+      id: winnerPlayer.id,
+      name: winnerPlayer.name,
+      seatIndex: winnerPlayer.seatIndex,
+      walletAddress: winnerPlayer.walletAddress,
+      playerSeatAddress: winnerPlayer.playerSeatAddress,
+    });
+
+    try {
+      await settleGameOnChain(winnerPlayer.seatIndex, settleGameOnBlockchain);
+      navigate("/");
+    } catch (error) {
+      console.error("Failed to settle game:", error);
+    }
+  };
+
+  if (!gameState || gameState.status === "waiting") {
     return (
       <>
         <Navbar showBackButton backTo="/games" />
@@ -98,12 +166,37 @@ export function Game() {
               })}
             </div>
 
-            <button
-              onClick={clearWinners}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-            >
-              Continue
-            </button>
+            {/* Error message */}
+            {error && (
+              <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg">
+                <p className="text-red-400 text-sm">{error}</p>
+                <button
+                  onClick={clearError}
+                  className="mt-2 text-red-300 hover:text-red-200 text-xs underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSettleGame}
+                disabled={isSettlingGame}
+                className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+              >
+                {isSettlingGame ? "Settling..." : "Settle Game On-Chain"}
+              </button>
+
+              <button
+                // onClick={clearWinners}
+                onClick={() => navigate("/")}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+              >
+                {/* Continue */}
+                Back to Home
+              </button>
+            </div>
           </div>
         </div>
       )}

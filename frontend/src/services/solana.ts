@@ -13,10 +13,11 @@ import {
   getSignatureFromTransaction,
   type Instruction,
   createKeyPairSignerFromBytes,
-  type KeyPairSigner,
+  type TransactionSigner,
   getProgramDerivedAddress,
   getAddressEncoder,
 } from "@solana/kit";
+import { DISCRIMINATORS } from "../utils/discriminator";
 
 // Helper function to write u64 in little-endian format
 function writeU64LE(buffer: Uint8Array, value: bigint, offset: number): void {
@@ -26,7 +27,7 @@ function writeU64LE(buffer: Uint8Array, value: bigint, offset: number): void {
 
 // Program ID from the deployed Solana Poker contract
 export const POKER_PROGRAM_ID = address(
-  "2fS8A3rSY5zSJyc5kaCKhAhwjpLiRPhth1bTwNWmGNcm",
+  "7EZ1zWNMjuHh62dikk9TAo478VMzAiLkvg8S7Vm85T7s",
 );
 
 // Inco Lightning Program ID
@@ -148,11 +149,8 @@ function createTableInstructionData(
   smallBlind: bigint,
   backendAccount: Address,
 ): Uint8Array {
-  // Anchor discriminator for create_table
-  // You may need to update this discriminator based on your actual IDL
-  const discriminator = new Uint8Array([
-    0xd6, 0x8e, 0x83, 0xfa, 0xf2, 0x53, 0x87, 0xb9,
-  ]);
+  // Use the pre-calculated discriminator
+  const discriminator = DISCRIMINATORS.CREATE_TABLE;
 
   const data = new Uint8Array(8 + 8 + 1 + 8 + 8 + 8 + 32);
   let offset = 0;
@@ -192,11 +190,8 @@ function createTableInstructionData(
  * Creates a join table instruction data
  */
 function joinTableInstructionData(buyIn: bigint): Uint8Array {
-  // Anchor discriminator for join_table
-  // You may need to update this discriminator based on your actual IDL
-  const discriminator = new Uint8Array([
-    0x0e, 0x75, 0x54, 0x33, 0x5f, 0x92, 0xab, 0x46,
-  ]);
+  // Use the pre-calculated discriminator
+  const discriminator = DISCRIMINATORS.JOIN_TABLE;
 
   const data = new Uint8Array(8 + 8);
 
@@ -218,30 +213,33 @@ function startGameInstructionData(
   smallBlindAmount: bigint,
   bigBlindAmount: bigint,
 ): Uint8Array {
-  // Anchor discriminator for start_game
-  const discriminator = new Uint8Array([
-    0xf9, 0x2f, 0xfc, 0xac, 0xb8, 0xa2, 0xf5, 0x0e,
-  ]);
+  // Use the pre-calculated discriminator
+  const discriminator = DISCRIMINATORS.START_GAME;
 
   const addressEncoder = getAddressEncoder();
   const backendBytes = addressEncoder.encode(backendAccount);
 
   const data = new Uint8Array(8 + 8 + 32 + 8 + 8);
+  let offset = 0;
 
   // Discriminator
-  data.set(discriminator, 0);
+  data.set(discriminator, offset);
+  offset += 8;
 
   // game_id: u64
-  writeU64LE(data, gameId, 8);
+  writeU64LE(data, gameId, offset);
+  offset += 8;
 
   // backend_account: Pubkey (32 bytes)
-  data.set(backendBytes, 16);
+  data.set(backendBytes, offset);
+  offset += 32;
 
   // small_blind_amount: u64
-  writeU64LE(data, smallBlindAmount, 48);
+  writeU64LE(data, smallBlindAmount, offset);
+  offset += 8;
 
   // big_blind_amount: u64
-  writeU64LE(data, bigBlindAmount, 56);
+  writeU64LE(data, bigBlindAmount, offset);
 
   return data;
 }
@@ -250,7 +248,7 @@ function startGameInstructionData(
  * Creates a new poker table on-chain
  */
 export async function createTable(
-  signer: KeyPairSigner,
+  signer: TransactionSigner,
   tableId: bigint,
   maxPlayers: number,
   buyInMin: bigint,
@@ -313,7 +311,7 @@ export async function createTable(
  * Join an existing poker table
  */
 export async function joinTable(
-  signer: KeyPairSigner,
+  signer: TransactionSigner,
   tableAddress: Address,
   buyIn: bigint,
 ): Promise<string> {
@@ -366,13 +364,13 @@ export async function joinTable(
  * Start a new game at a poker table
  */
 export async function startGame(
-  signer: KeyPairSigner,
+  signer: TransactionSigner,
   tableAddress: Address,
   gameId: bigint,
   backendAccount: Address,
   smallBlindAmount: bigint,
   bigBlindAmount: bigint,
-): Promise<string> {
+): Promise<{ signature: string; gameAddress: string }> {
   // Derive game PDA
   const [gamePDA] = await getGamePDA(tableAddress, gameId);
 
@@ -418,7 +416,52 @@ export async function startGame(
 
   // Get signature
   const signature = getSignatureFromTransaction(signedTransaction);
-  return signature;
+  return { signature, gameAddress: gamePDA };
+}
+
+/**
+ * Creates a settle game instruction data
+ */
+function settleGameInstructionData(
+  winnerSeatIndex: number,
+  finalPot: bigint,
+): Uint8Array {
+  // Use the pre-calculated discriminator
+  const discriminator = DISCRIMINATORS.SETTLE_GAME;
+
+  const data = new Uint8Array(8 + 1 + 8);
+  let offset = 0;
+
+  // Discriminator
+  data.set(discriminator, offset);
+  offset += 8;
+
+  // winner_seat_index: u8
+  data[offset] = winnerSeatIndex;
+  offset += 1;
+
+  // final_pot: u64
+  writeU64LE(data, finalPot, offset);
+
+  return data;
+}
+
+/**
+ * Settle the game and pay out the winner
+ * Note: This function is no longer used - settle game functionality has been moved to useSolanaPoker hook
+ * Keeping for reference, but should be removed in cleanup
+ */
+export async function settleGame(
+  signer: TransactionSigner,
+  tableAddress: Address,
+  gameAddress: Address,
+  winnerSeatIndex: number,
+  winnerWalletAddress: Address,
+  finalPot: bigint,
+): Promise<string> {
+  throw new Error(
+    "This function is deprecated. Use settleGame from useSolanaPoker hook instead.",
+  );
 }
 
 /**
@@ -426,9 +469,9 @@ export async function startGame(
  */
 export async function createKeypairFromBytes(
   bytes: Uint8Array,
-): Promise<KeyPairSigner> {
+): Promise<TransactionSigner> {
   return await createKeyPairSignerFromBytes(bytes);
 }
 
 // Export types for convenience
-export type { KeyPairSigner, Address };
+export type { TransactionSigner, Address };

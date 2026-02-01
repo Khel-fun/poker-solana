@@ -1,12 +1,12 @@
 import { Router, Request, Response } from "express";
 import { GameService } from "../services/GameService";
-import { getBackendPublicKey } from "../services/SolanaService";
+import { getBackendPublicKey } from "../services/WalletService";
 import type { CreateGameRequest } from "../../../shared/types";
 
 const router = Router();
 
 // Create a new game
-router.post("/games", (req: Request, res: Response) => {
+router.post("/games", async (req: Request, res: Response) => {
   const {
     hostId,
     hostName,
@@ -21,8 +21,8 @@ router.post("/games", (req: Request, res: Response) => {
   }
 
   const tableId = Date.now().toString();
-  const backendPublicKey = getBackendPublicKey();
-
+  const backendPublicKey = await getBackendPublicKey();
+  
   const result = GameService.createGame(
     hostId,
     hostName,

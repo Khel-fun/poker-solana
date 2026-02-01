@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@inco/solana-sdk": "^0.0.2",
+    "@solana/web3.js": "^1.98.4",
     "@solana-program/compute-budget": "^0.12.0",
     "@solana/kit": "^5.4.0",
     "@solana/web3.js": "^1.98.4",

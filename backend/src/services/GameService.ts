@@ -126,7 +126,7 @@ class GameServiceClass {
       return { success: false, error: "GAME_STARTED" };
     }
 
-    // If player is already in the game (e.g., host reconnecting), just return success
+    // If player is already in the game (e.g., host reconnecting), update data
     const existingPlayer = game.players.find((p) => p.id === playerId);
     if (existingPlayer) {
       if (walletAddress) {
