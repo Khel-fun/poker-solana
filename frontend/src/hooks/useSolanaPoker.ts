@@ -367,7 +367,7 @@ export const useSolanaPoker = () => {
           const simulation = await connection.simulateTransaction(transaction, {
             sigVerify: false,
             commitment: "processed",
-          });
+          } as any);
           if (simulation.value.err) {
             console.error(
               "❌ CreateTable simulation failed:",
@@ -597,7 +597,7 @@ export const useSolanaPoker = () => {
           const simulation = await connection.simulateTransaction(transaction, {
             sigVerify: false,
             commitment: "processed",
-          });
+          } as any);
           if (simulation.value.err) {
             console.error("❌ Simulation failed:", simulation.value.err);
             if (simulation.value.logs) {

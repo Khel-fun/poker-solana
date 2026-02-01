@@ -5,7 +5,7 @@
  * Attested Decrypt functionality on Solana.
  */
 
-import { AttestedDecryptError } from "@inco/solana-sdk/attested-decrypt";
+import { AttestedDecryptError, decrypt } from "@inco/solana-sdk/attested-decrypt";
 import { ENCRYPTION_CONSTANTS } from "@inco/solana-sdk/constants";
 import bs58 from "bs58";
 import { PublicKey } from "@solana/web3.js";

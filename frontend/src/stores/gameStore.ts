@@ -149,7 +149,7 @@ export const useGameStore = create<GameStore>()(
           set({ currentTurnPlayerId: playerId, timeRemaining, validActions });
         });
 
-        s.on("player_acted", ({ playerId, action, playerChips, pot }) => {
+        s.on("player_acted", ({ playerId, playerChips, pot }) => {
           const { gameState } = get();
           if (gameState) {
             const updatedPlayers = gameState.players.map((p) =>
