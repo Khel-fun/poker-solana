@@ -43,7 +43,7 @@ export class ProofVerify {
     }
   }
 
-  private setupDefaultVerifyConfig(): VerifyConfig {
+  private async setupDefaultVerifyConfig(): Promise<VerifyConfig> {
     let config: VerifyConfig;
     let rpcUrl = process.env.RPC_URL;
     if (!rpcUrl) {
@@ -67,7 +67,7 @@ export class ProofVerify {
       programIds[id] = program_id;
     });
 
-    const client = walletClient;
+    const client = await walletClient;
     const computeUnits = 500_000;
     const commitment = "confirmed";
 
@@ -119,7 +119,7 @@ export class ProofVerify {
     // TODO: setup transaction instructions
     const txnInstruction = {
       programAddress: programId,
-      keys: [],
+      accounts: [],
       data: payloadData,
     };
 

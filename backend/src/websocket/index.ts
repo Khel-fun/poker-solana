@@ -47,8 +47,10 @@ export function setupWebSocket(io: GameServer): void {
       socketToPlayer.set(socket.id, player.id);
       playerToSocket.set(player.id, socket.id);
 
+
       // Join socket room
       socket.join(gameId);
+
 
       // Notify all players in the room
       const joinedPlayer = result.game!.players.find(
@@ -70,6 +72,7 @@ export function setupWebSocket(io: GameServer): void {
       if (!playerId) return;
 
       const result = GameService.leaveGame(gameId, playerId);
+
 
       if (result.success) {
         socket.leave(gameId);
