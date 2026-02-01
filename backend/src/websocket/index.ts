@@ -23,7 +23,6 @@ const playerToSocket: Map<string, string> = new Map();
 
 export function setupWebSocket(io: GameServer): void {
   io.on("connection", (socket: GameSocket) => {
-  io.on("connection", (socket: GameSocket) => {
     console.log(`Client connected: ${socket.id}`);
 
     // Join game
@@ -37,10 +36,6 @@ export function setupWebSocket(io: GameServer): void {
       );
 
       if (!result.success) {
-        socket.emit("error", {
-          message: result.error || "Failed to join game",
-          code: result.error || "UNKNOWN",
-        });
         socket.emit("error", {
           message: result.error || "Failed to join game",
           code: result.error || "UNKNOWN",
@@ -63,17 +58,7 @@ export function setupWebSocket(io: GameServer): void {
       )!;
       socket.to(gameId).emit("player_joined", joinedPlayer);
 
-      const joinedPlayer = result.game!.players.find(
-        (p) => p.id === player.id,
-      )!;
-      socket.to(gameId).emit("player_joined", joinedPlayer);
-
       // Send full game state to the joining player
-      const gameState = GameService.getGameStateForPlayer(
-        result.game!,
-        player.id,
-      );
-      socket.emit("game_state", gameState);
       const gameState = GameService.getGameStateForPlayer(
         result.game!,
         player.id,
@@ -83,7 +68,6 @@ export function setupWebSocket(io: GameServer): void {
 
     // Leave game
     socket.on("leave_game", ({ gameId }) => {
-    socket.on("leave_game", ({ gameId }) => {
       const playerId = socketToPlayer.get(socket.id);
       if (!playerId) return;
 
@@ -92,8 +76,6 @@ export function setupWebSocket(io: GameServer): void {
 
       if (result.success) {
         socket.leave(gameId);
-        io.to(gameId).emit("player_left", { playerId });
-
         io.to(gameId).emit("player_left", { playerId });
 
         // Clean up mappings

@@ -183,17 +183,6 @@ export interface ServerToClientEvents {
     playerChips: number;
     pot: number;
   }) => void;
-  player_turn: (data: {
-    playerId: string;
-    timeRemaining: number;
-    validActions: ActionType[];
-  }) => void;
-  player_acted: (data: {
-    playerId: string;
-    action: PlayerAction;
-    playerChips: number;
-    pot: number;
-  }) => void;
   pot_updated: (data: { pot: number; sidePots: SidePot[] }) => void;
   hand_complete: (data: {
     winners: Winner[];
@@ -207,25 +196,7 @@ export interface ServerToClientEvents {
       position: number;
     }[];
   }) => void;
-  hand_complete: (data: {
-    winners: Winner[];
-    showdown: { playerId: string; cards: Card[]; handRank: string }[];
-  }) => void;
-  game_over: (data: {
-    finalStandings: {
-      playerId: string;
-      name: string;
-      chips: number;
-      position: number;
-    }[];
-  }) => void;
   error: (data: { message: string; code: string }) => void;
-  chat_received: (data: {
-    playerId: string;
-    playerName: string;
-    message: string;
-    timestamp: Date;
-  }) => void;
   chat_received: (data: {
     playerId: string;
     playerName: string;
@@ -272,7 +243,7 @@ export type ErrorCode =
   | "INSUFFICIENT_CHIPS"
   | "PLAYER_NOT_FOUND"
   | "ALREADY_JOINED"
-  | "MIN_PLAYERS_NOT_MET";
+  | "MIN_PLAYERS_NOT_MET"
   | "GAME_NOT_FOUND"
   | "GAME_FULL"
   | "GAME_STARTED"
