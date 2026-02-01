@@ -38,9 +38,7 @@ export class Logic {
     this.proofSystemService = options?.proofSystemService || proofSystemService;
   }
 
-  async start_game(roundId: string): Signature {
-    const seed_value: string = await request_randomess();
-    const seed: Field = toField(seed_value);
+  public async get_table_cards(roundId: string, seed: string): Promise<number[]> {
     const shuffled_deck: Field[] = await fisher_yates_shuffle(seed);
     const root: Field = await merkle_root(shuffled_deck, seed);
     let chosen_cards: string[] = [];
@@ -51,17 +49,38 @@ export class Logic {
 
     await this.prove_shuffled_deck(roundId, seed, root, chosen_cards);
 
-    for (let i = 0; i < 3; i++) {
-      let deck_part: number[] = [];
-      for (let j = 5 * i; j < 5 * i + 5; j++) {
-        const card = Number(chosen_cards[j]);
-        deck_part.push(card);
-      }
-      await post_cards(roundId, deck_part);
+    let table_cards: number[] = [];
+    for (let i = 0; i < 15; i++) {
+      const card = Number(chosen_cards[i]);
+      table_cards.push(card);
     }
-    const confirmation_signature = await trigger_card_process(roundId);
-    return confirmation_signature;
+    return table_cards;
   }
+
+  // async start_game(roundId: string): Signature {
+  //   const seed_value: string = await request_randomess();
+  //   const seed: Field = toField(seed_value);
+  //   const shuffled_deck: Field[] = await fisher_yates_shuffle(seed);
+  //   const root: Field = await merkle_root(shuffled_deck, seed);
+  //   let chosen_cards: string[] = [];
+  //   for (let i = 0; i < 15; i++) {
+  //     const card = shuffled_deck[i];
+  //     chosen_cards.push(card);
+  //   }
+
+  //   await this.prove_shuffled_deck(roundId, seed, root, chosen_cards);
+
+  //   for (let i = 0; i < 3; i++) {
+  //     let deck_part: number[] = [];
+  //     for (let j = 5 * i; j < 5 * i + 5; j++) {
+  //       const card = Number(chosen_cards[j]);
+  //       deck_part.push(card);
+  //     }
+  //     await post_cards(roundId, deck_part);
+  //   }
+  //   const confirmation_signature = await trigger_card_process(roundId);
+  //   return confirmation_signature;
+  // }
 
   private async prove_shuffled_deck(
     roundId: string,
@@ -124,3 +143,5 @@ export class Logic {
     return await this.proofManager.awaitRoundVerification(roundId);
   }
 }
+
+export const logic = new Logic();

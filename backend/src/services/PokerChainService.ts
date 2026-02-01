@@ -16,6 +16,7 @@ import { encryptValue } from "@inco/solana-sdk/encryption";
 import { decrypt } from "@inco/solana-sdk/attested-decrypt";
 import type { Card } from "../../../shared/types";
 import { createClient, signBackendMessage } from "./WalletService";
+import { logic } from "./Logic";
 
 const START_GAME_DISCRIMINATOR = new Uint8Array([
   0xf9, 0x2f, 0xfc, 0xac, 0xb8, 0xa2, 0xf5, 0x0e,
@@ -284,12 +285,16 @@ export async function processCardsBatches(params: {
   const gameAddr = address(gameAddress);
 
   // Generate 15 unique card values
-  const deck = Array.from({ length: 52 }, (_, i) => i);
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  const selected = deck.slice(0, 15);
+  // const deck = Array.from({ length: 52 }, (_, i) => i);
+  // for (let i = deck.length - 1; i > 0; i--) {
+  //   const j = Math.floor(Math.random() * (i + 1));
+  //   [deck[i], deck[j]] = [deck[j], deck[i]];
+  // }
+  // const selected = deck.slice(0, 15);
+
+  const seed_value = "" // TODO: get onchain verified randomness
+  const roundId = "" // TODO: add the associated tableId
+  const selected = await logic.get_table_cards(roundId, seed_value);
 
   const encryptedCards: Uint8Array[] = [];
   for (const value of selected) {
