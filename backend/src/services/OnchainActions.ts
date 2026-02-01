@@ -1,4 +1,4 @@
-import { encryptValue } from "@inco/solana-sdk/encryption";
+import { encryptValue, EncryptionError } from "@inco/solana-sdk/encryption";
 import { decrypt } from "@inco/solana-sdk/attested-decrypt";
 import { address, Instruction, Signature } from "@solana/kit";
 import { createClient } from "./WalletService";
@@ -20,13 +20,27 @@ export async function post_cards(roundId: string, cards: number[]) {
   }
   const programAddress = address(process.env.PROGRAM_ID);
 
-  const instruction: Instruction = {
-    programAddress,
-    accounts: [],
-    data: Buffer.from(card_ciphers.join("")),
-  };
+  let cards_per_batch: string[] = [];
 
-  // TODO: implement posting onchain
+  try {
+    for (let i = 0; i < card_ciphers.length / 2; i++) {
+      cards_per_batch.push(card_ciphers[i * 2]);
+      cards_per_batch.push(card_ciphers[i * 2 + 1]);
+
+      const instruction: Instruction = {
+        accounts: [],
+        data: Buffer.from(cards_per_batch.join(""), "hex"),
+        programAddress,
+      };
+
+      // TODO: implement posting onchain
+    }
+  } catch (error) {
+    if (error instanceof EncryptionError) {
+      console.error("Encryption failed:", error.message);
+      console.error("Cause:", error.cause);
+    }
+  }
 }
 
 // TODO: implement trigger_card_process on game-contract

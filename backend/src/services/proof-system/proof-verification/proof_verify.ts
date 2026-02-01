@@ -119,7 +119,7 @@ export class ProofVerify {
     // TODO: setup transaction instructions
     const txnInstruction = {
       programAddress: programId,
-      keys: [],
+      accounts: [],
       data: payloadData,
     };
 
