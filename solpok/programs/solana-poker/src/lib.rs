@@ -7,6 +7,7 @@ pub mod error;
 pub mod state;
 
 pub mod create_table;
+pub mod generate_random;
 pub mod join_table;
 pub mod refund_all;
 pub mod process_cards;
@@ -17,6 +18,7 @@ pub mod settle_game;
 pub mod start_game;
 
 use create_table::*;
+use generate_random::*;
 use join_table::*;
 use refund_all::*;
 use process_cards::*;
@@ -135,5 +137,14 @@ pub mod solana_poker {
         final_pot: u64,
     ) -> Result<()> {
         settle_game::handler(ctx, winner_seat_index, final_pot)
+    }
+
+    /// Generate an encrypted random number using Inco e_rand
+    /// Pass allowance accounts via remaining_accounts to grant decrypt permission.
+    pub fn generate_random<'info>(
+        ctx: Context<'_, '_, '_, 'info, GenerateRandom<'info>>,
+        nonce: u64,
+    ) -> Result<()> {
+        generate_random::handler(ctx, nonce)
     }
 }
