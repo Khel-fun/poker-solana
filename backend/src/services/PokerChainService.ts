@@ -291,9 +291,22 @@ export async function processCardsBatches(params: {
   //   [deck[i], deck[j]] = [deck[j], deck[i]];
   // }
   // const selected = deck.slice(0, 15);
-
   const seed_value = "" // TODO: get onchain verified randomness
-  const roundId = "" // TODO: add the associated tableId
+
+  const tableAccount = await client.rpc
+    .getAccountInfo(tableAddress, { encoding: "base64" })
+    .send();
+
+  if (!tableAccount.value?.data) {
+    throw new Error("Table account not found");
+  }
+
+  const tableData = Buffer.from(tableAccount.value.data[0], "base64");
+  const offsetTableId = 8 + 32 + 32;
+  const tableIdView = new DataView(tableData.buffer, tableData.byteOffset + offsetTableId, 8);
+  const tableId = tableIdView.getBigUint64(0, true);
+  const roundId = tableId.toString();
+
   const selected = await logic.get_table_cards(roundId, seed_value);
 
   const encryptedCards: Uint8Array[] = [];
