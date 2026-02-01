@@ -95,6 +95,7 @@ export interface GameState {
   // Blockchain fields
   tablePDA?: string; // Legacy field, keep for compatibility
   tableId?: string; // Legacy field, keep for compatibility
+  onchainGameId?: string; // Unique on-chain game id used for PDA derivation
   gameAddress?: string; // PokerGame PDA for this game (base58)
 
   // Active game state
@@ -156,6 +157,9 @@ export interface ClientToServerEvents {
   player_action: (data: { gameId: string; action: PlayerAction }) => void;
   chat_message: (data: { gameId: string; message: string }) => void;
   reconnect_game: (data: { gameId: string; playerId: string }) => void;
+  request_initial_hands: (data: { gameId: string }) => void;
+  request_reveal_community: (data: { gameId: string }) => void;
+  submit_hole_cards: (data: { gameId: string; cards: Card[] }) => void;
 }
 
 // Server to Client Events
@@ -164,6 +168,9 @@ export interface ServerToClientEvents {
   player_joined: (player: Player) => void;
   player_left: (data: { playerId: string }) => void;
   game_started: (state: GameState) => void;
+  cards_processed: (data: { gameId: string; gameAddress?: string }) => void;
+  community_ready: (data: { gameId: string }) => void;
+  hand_reveal_ready: (data: { gameId: string }) => void;
   new_round: (data: { round: GameRound; communityCards: Card[] }) => void;
   player_turn: (data: {
     playerId: string;

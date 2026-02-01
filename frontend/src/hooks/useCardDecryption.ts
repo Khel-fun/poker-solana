@@ -64,8 +64,9 @@ export function useCardDecryption() {
       playerSeatAddress: string,
       tableAddress: string,
       gameId: bigint,
+      gameAddress: string,
     ): Promise<Card[]> => {
-      if (!playerSeatAddress || !tableAddress) {
+      if (!playerSeatAddress || !tableAddress || !gameAddress) {
         setError("Missing required addresses");
         return [];
       }
@@ -89,7 +90,7 @@ export function useCardDecryption() {
         console.log("🔓 Step 2: Decrypting hole cards with Inco SDK...");
 
         // Step 2: Decrypt cards using Inco SDK (checks allowances exist)
-        const decrypted = await getMyCards(playerSeatAddress);
+        const decrypted = await getMyCards(playerSeatAddress, gameAddress);
         const converted = decrypted.map(convertCard);
         setMyCards(converted);
 
@@ -117,6 +118,35 @@ export function useCardDecryption() {
       }
     },
     [getMyCards, convertCard, revealHand],
+  );
+
+  /**
+   * Decrypt player's hole cards without calling revealHand (backend already granted access)
+   */
+  const decryptMyCardsOnly = useCallback(
+    async (playerSeatAddress: string, gameAddress: string): Promise<Card[]> => {
+      if (!playerSeatAddress || !gameAddress) {
+        setError("Missing player seat address");
+        return [];
+      }
+
+      setIsDecrypting(true);
+      setError(null);
+
+      try {
+        const decrypted = await getMyCards(playerSeatAddress, gameAddress);
+        const converted = decrypted.map(convertCard);
+        setMyCards(converted);
+        return converted;
+      } catch (err: any) {
+        const errorMsg = err?.message || "Failed to decrypt hole cards";
+        setError(errorMsg);
+        return [];
+      } finally {
+        setIsDecrypting(false);
+      }
+    },
+    [getMyCards, convertCard],
   );
 
   /**
@@ -277,6 +307,7 @@ export function useCardDecryption() {
 
     // Actions
     decryptMyCards,
+    decryptMyCardsOnly,
     decryptCommunity,
     revealCommunityCards,
     clearCards,

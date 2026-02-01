@@ -188,14 +188,13 @@ export function Game() {
                 {isSettlingGame ? "Settling..." : "Settle Game On-Chain"}
               </button>
 
-              <button
+              {/* <button
                 // onClick={clearWinners}
                 onClick={() => navigate("/")}
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
               >
-                {/* Continue */}
                 Back to Home
-              </button>
+              </button> */}
             </div>
           </div>
         </div>

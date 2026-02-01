@@ -39,8 +39,8 @@ export const INCO_LIGHTNING_PROGRAM_ID = address(
 export const SYSTEM_PROGRAM_ID = address("11111111111111111111111111111111");
 
 // RPC endpoint
-const RPC_HTTP_URL = "https://api.devnet.solana.com";
-const RPC_WS_URL = "wss://api.devnet.solana.com";
+const RPC_HTTP_URL = "https://devnet.helius-rpc.com/?api-key=19e8e7a6-48a7-405a-95d6-27123b062c3d";
+const RPC_WS_URL = "wss://devnet.helius-rpc.com/?api-key=19e8e7a6-48a7-405a-95d6-27123b062c3d";
 
 // Create RPC clients
 export const rpc = createSolanaRpc(RPC_HTTP_URL);

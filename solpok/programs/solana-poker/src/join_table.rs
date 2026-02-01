@@ -1,11 +1,12 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
-use crate::state::PokerTable;
+use crate::state::{PokerTable, PlayerSeat};
 use crate::error::PokerError;
 
 /// Player joins a table with a buy-in
 pub fn handler(ctx: Context<JoinTable>, buy_in: u64) -> Result<()> {
     let table = &mut ctx.accounts.table;
+    let player_seat = &mut ctx.accounts.player_seat;
     
     // Validate buy-in amount
     require!(
@@ -31,11 +32,25 @@ pub fn handler(ctx: Context<JoinTable>, buy_in: u64) -> Result<()> {
         buy_in,
     )?;
 
+    // Initialize PlayerSeat
+    player_seat.game = Pubkey::default(); // Will be set/used later
+    player_seat.player = ctx.accounts.player.key();
+    player_seat.seat_index = table.player_count; // Assign next available seat
+    player_seat.chips = buy_in;
+    player_seat.current_bet = 0;
+    player_seat.total_bet = 0;
+    player_seat.is_folded = false;
+    player_seat.is_all_in = false;
+    player_seat.has_acted = false;
+    player_seat.hand_rank = 0;
+    player_seat.bump = ctx.bumps.player_seat;
+
     table.player_count += 1;
 
     msg!(
-        "Player {} joined table with {} lamports. Players: {}/{}",
+        "Player {} joined table at seat {} with {} lamports. Players: {}/{}",
         ctx.accounts.player.key(),
+        player_seat.seat_index,
         buy_in,
         table.player_count,
         table.max_players
@@ -56,6 +71,15 @@ pub struct JoinTable<'info> {
         bump
     )]
     pub vault: AccountInfo<'info>,
+
+    #[account(
+        init,
+        payer = player,
+        space = PlayerSeat::LEN,
+        seeds = [b"player_seat", table.key().as_ref(), player.key().as_ref()],
+        bump
+    )]
+    pub player_seat: Account<'info, PlayerSeat>,
 
     #[account(mut)]
     pub player: Signer<'info>,

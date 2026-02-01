@@ -6,6 +6,7 @@ import { PlayingCard } from "./PlayingCard";
 import { ActionPanel } from "./ActionPanel";
 import { CoinAnimation } from "./CoinAnimation";
 import { useCardDecryption } from "../../hooks/useCardDecryption";
+import { useGameStore } from "../../stores/gameStore";
 import clsx from "clsx";
 
 interface PokerTableProps {
@@ -36,29 +37,30 @@ const seatPositions = [
   "bottom-24 right-24", // Position 4: Bottom right
 ];
 
-// Map game round to stage number for Inco decryption
-const roundToStage: Record<string, number> = {
-  "pre-flop": 1,
-  flop: 2,
-  turn: 3,
-  river: 4,
-  showdown: 5,
-};
-
 export function PokerTable({
   gameState,
   currentPlayerId,
   currentTurnPlayerId,
-  gameAddress,
   tableAddress,
+  gameAddress,
   gameId,
   validActions,
   timeRemaining,
   onAction,
 }: PokerTableProps) {
-  const { communityCards, decryptCommunity, isDecrypting, error } =
+  const { communityCards, isDecrypting, error, decryptMyCardsOnly, myCards } =
     useCardDecryption();
-  const [coinAnimations, setCoinAnimations] = useState<CoinAnimationState[]>([]);
+  const {
+    cardsProcessed,
+    communityReady,
+    handRevealReady,
+    requestInitialHands,
+    requestRevealCommunity,
+    submitHoleCards,
+  } = useGameStore();
+  const [coinAnimations, setCoinAnimations] = useState<CoinAnimationState[]>(
+    [],
+  );
   const tableWrapperRef = useRef<HTMLDivElement>(null);
   const potRef = useRef<HTMLDivElement>(null);
   const prevPotRef = useRef<number>(gameState.pot);
@@ -69,7 +71,6 @@ export function PokerTable({
   });
 
   const isShowdown = gameState.round === "showdown";
-  const currentStage = roundToStage[gameState.round] || 0;
   const currentPlayer = gameState.players.find((p) => p.id === currentPlayerId);
   const isMyTurn = currentTurnPlayerId === currentPlayerId;
 
@@ -77,68 +78,90 @@ export function PokerTable({
   const displayCommunityCards =
     communityCards.length > 0 ? communityCards : gameState.communityCards;
 
-  // Show reveal button if:
-  // - We have a game address
-  // - We're past pre-flop (stage >= 2)
-  // - We haven't decrypted yet (communityCards is empty)
   const shouldShowRevealButton =
-    gameAddress && currentStage >= 2 && communityCards.length === 0;
+    cardsProcessed && !communityReady && displayCommunityCards.length === 0;
+
+  const currentPlayerSeatAddress =
+    currentPlayer?.playerSeatAddress ||
+    (currentPlayerId
+      ? localStorage.getItem(
+          `playerSeat_${window.location.pathname.split("/").pop()}_${currentPlayerId}`,
+        )
+      : null);
+
+  const handleRequestHands = () => {
+    requestInitialHands(gameState.id);
+  };
+
+  const handleDecryptMyHand = async () => {
+    if (!currentPlayerSeatAddress) return;
+    if (!gameAddress) return;
+    const cards = await decryptMyCardsOnly(
+      currentPlayerSeatAddress,
+      gameAddress,
+    );
+    if (cards.length > 0) {
+      submitHoleCards(gameState.id, cards);
+    }
+  };
 
   const handleRevealCommunity = async () => {
-    if (!gameAddress) {
-      console.error("No game address provided");
-      return;
-    }
-    await decryptCommunity(gameAddress, currentStage);
+    requestRevealCommunity(gameState.id);
   };
 
   const removeCoinAnimation = useCallback((id: string) => {
     setCoinAnimations((prev) => prev.filter((anim) => anim.id !== id));
   }, []);
 
-  const triggerCoinAnimation = useCallback((playerId: string) => {
-    if (!tableWrapperRef.current || !potRef.current) return;
+  const triggerCoinAnimation = useCallback(
+    (playerId: string) => {
+      if (!tableWrapperRef.current || !potRef.current) return;
 
-    const playerIndex = sortedPlayers.findIndex((p) => p.id === playerId);
-    if (playerIndex === -1) return;
+      const playerIndex = sortedPlayers.findIndex((p) => p.id === playerId);
+      if (playerIndex === -1) return;
 
-    const tableRect = tableWrapperRef.current.getBoundingClientRect();
+      const tableRect = tableWrapperRef.current.getBoundingClientRect();
 
-    const seatPosition = seatPositions[playerIndex];
-    let startX = 0;
-    let startY = 0;
+      const seatPosition = seatPositions[playerIndex];
+      let startX = 0;
+      let startY = 0;
 
-    if (seatPosition.includes('bottom') && seatPosition.includes('left-1/2')) {
-      startX = tableRect.width / 2;
-      startY = tableRect.height - 50;
-    } else if (seatPosition.includes('bottom-24 left-24')) {
-      startX = 100;
-      startY = tableRect.height - 100;
-    } else if (seatPosition.includes('top-24 left-24')) {
-      startX = 100;
-      startY = 100;
-    } else if (seatPosition.includes('top-24 right-24')) {
-      startX = tableRect.width - 100;
-      startY = 100;
-    } else if (seatPosition.includes('bottom-24 right-24')) {
-      startX = tableRect.width - 100;
-      startY = tableRect.height - 100;
-    }
+      if (
+        seatPosition.includes("bottom") &&
+        seatPosition.includes("left-1/2")
+      ) {
+        startX = tableRect.width / 2;
+        startY = tableRect.height - 50;
+      } else if (seatPosition.includes("bottom-24 left-24")) {
+        startX = 100;
+        startY = tableRect.height - 100;
+      } else if (seatPosition.includes("top-24 left-24")) {
+        startX = 100;
+        startY = 100;
+      } else if (seatPosition.includes("top-24 right-24")) {
+        startX = tableRect.width - 100;
+        startY = 100;
+      } else if (seatPosition.includes("bottom-24 right-24")) {
+        startX = tableRect.width - 100;
+        startY = tableRect.height - 100;
+      }
 
-    const endX = tableRect.width / 2;
-    const endY = tableRect.height / 2;
+      const endX = tableRect.width / 2;
+      const endY = tableRect.height / 2;
 
-    const animationId = `${playerId}-${Date.now()}`;
-    setCoinAnimations((prev) => [
-      ...prev,
-      { id: animationId, startX, startY, endX, endY },
-    ]);
-  }, [sortedPlayers]);
+      const animationId = `${playerId}-${Date.now()}`;
+      setCoinAnimations((prev) => [
+        ...prev,
+        { id: animationId, startX, startY, endX, endY },
+      ]);
+    },
+    [sortedPlayers],
+  );
 
   useEffect(() => {
     if (gameState.pot > prevPotRef.current) {
       const lastActedPlayer = gameState.players.find(
-        (p) => p.bet > 0 || p.totalBet > 0
+        (p) => p.bet > 0 || p.totalBet > 0,
       );
       if (lastActedPlayer) {
         triggerCoinAnimation(lastActedPlayer.id);
@@ -150,8 +173,20 @@ export function PokerTable({
   return (
     <div className="min-h-screen bg-[url('/background.jpg')] bg-cover bg-center">
       <div className="relative w-full h-[calc(100vh)] flex items-center justify-center overflow-hidden perspective-[1000px] pt-28">
+        {/* Round Indicator - Top Left */}
+        <div className="absolute top-24 left-24 z-40">
+          <div className="bg-gradient-to-r from-yellow-600 via-yellow-500 to-yellow-600 px-8 py-3 rounded-full shadow-2xl border-[3px] border-amber-900">
+            <span className="text-white font-bold text-lg uppercase tracking-wider drop-shadow-lg">
+              {gameState.round}
+            </span>
+          </div>
+        </div>
+
         {/* Table & Dealer Wrapper - Defines the scale for both */}
-        <div ref={tableWrapperRef} className="relative w-[95vw] md:w-[85vw] max-w-[1400px] aspect-[1.8/1]">
+        <div
+          ref={tableWrapperRef}
+          className="relative w-[95vw] md:w-[85vw] max-w-[1400px] aspect-[1.8/1]"
+        >
           {/* Dealer - Positioned relative to the wrapper (table size) */}
           <div className="absolute -top-[20%] left-1/2 -translate-x-1/2 w-[30%] h-[40%] flex justify-center items-end z-30">
             <img
@@ -190,22 +225,6 @@ export function PokerTable({
                 ))}
               </div>
 
-              {/* Reveal community cards button */}
-              {shouldShowRevealButton && (
-                <button
-                  onClick={handleRevealCommunity}
-                  disabled={isDecrypting}
-                  className={clsx(
-                    "mb-2 px-4 py-2 text-sm font-semibold rounded-lg transition-all shadow-lg",
-                    isDecrypting
-                      ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                      : "bg-purple-600 hover:bg-purple-700 text-white",
-                  )}
-                >
-                  {isDecrypting ? "Decrypting..." : "Reveal Community Cards"}
-                </button>
-              )}
-
               {/* Error message */}
               {error && <p className="text-red-400 text-xs mb-2">{error}</p>}
 
@@ -214,11 +233,6 @@ export function PokerTable({
                 <span className="text-yellow-400 font-bold text-xl">
                   Pot: ${gameState.pot.toLocaleString()}
                 </span>
-              </div>
-
-              {/* Round indicator */}
-              <div className="text-green-400 text-sm uppercase tracking-wider">
-                {gameState.round}
               </div>
             </div>
             {/* Player seats */}
@@ -244,6 +258,7 @@ export function PokerTable({
                   showCards={isShowdown}
                   playerSeatAddress={player.playerSeatAddress}
                   tableAddress={tableAddress}
+                  gameAddress={gameAddress}
                   gameId={gameId}
                   timeRemaining={timeRemaining}
                   turnTime={gameState.settings.turnTimeSeconds}
@@ -265,6 +280,51 @@ export function PokerTable({
             />
           ))}
         </div>
+
+        {/* Card Request Buttons - Below Table */}
+        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 flex gap-3 z-40">
+          {shouldShowRevealButton && (
+            <button
+              onClick={handleRevealCommunity}
+              disabled={isDecrypting}
+              className={clsx(
+                "px-8 py-3.5 font-bold text-base rounded-full transition-all shadow-2xl border-2",
+                "transform hover:scale-105 active:scale-95 backdrop-blur-sm",
+                isDecrypting
+                  ? "bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed border-gray-600/50"
+                  : "bg-gradient-to-r from-purple-600 via-purple-500 to-purple-600 hover:from-purple-500 hover:via-purple-400 hover:to-purple-500 text-white border-purple-400/50",
+              )}
+            >
+              {isDecrypting ? "Decrypting..." : "🃏 Reveal Community Cards"}
+            </button>
+          )}
+
+          {cardsProcessed && !handRevealReady && (
+            <button
+              onClick={handleRequestHands}
+              className="px-8 py-3.5 font-bold text-base rounded-full transition-all shadow-2xl border-2 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-600 hover:from-blue-500 hover:via-blue-400 hover:to-blue-500 text-white border-blue-400/50 transform hover:scale-105 active:scale-95 backdrop-blur-sm"
+            >
+              🎴 Request Initial Hands
+            </button>
+          )}
+
+          {cardsProcessed && handRevealReady && myCards.length === 0 && (
+            <button
+              onClick={handleDecryptMyHand}
+              disabled={isDecrypting}
+              className={clsx(
+                "px-8 py-3.5 font-bold text-base rounded-full transition-all shadow-2xl border-2",
+                "transform hover:scale-105 active:scale-95 backdrop-blur-sm",
+                isDecrypting
+                  ? "bg-gradient-to-r from-gray-700 to-gray-800 text-gray-400 cursor-not-allowed border-gray-600/50"
+                  : "bg-gradient-to-r from-green-600 via-green-500 to-green-600 hover:from-green-500 hover:via-green-400 hover:to-green-500 text-white border-green-400/50",
+              )}
+            >
+              {isDecrypting ? "Decrypting..." : "🔓 Decrypt My Hand"}
+            </button>
+          )}
+        </div>
+
         {/* Action panel - positioned at bottom right corner */}
         {isMyTurn && currentPlayer && !currentPlayer.folded && (
           <div className="absolute bottom-6 right-6 z-30">

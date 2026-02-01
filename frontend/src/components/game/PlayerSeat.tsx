@@ -3,6 +3,7 @@ import gsap from "gsap";
 import type { Player } from "../../../../shared/types";
 import { PlayingCard } from "./PlayingCard";
 import { useCardDecryption } from "../../hooks/useCardDecryption";
+import { useGameStore } from "../../stores/gameStore";
 import clsx from "clsx";
 
 interface PlayerSeatProps {
@@ -15,6 +16,7 @@ interface PlayerSeatProps {
   showCards: boolean;
   playerSeatAddress?: string; // Solana PDA for this player's seat
   tableAddress?: string; // Solana PDA for the poker table
+  gameAddress?: string; // Solana PDA for the poker game
   gameId?: bigint; // Game ID for revealHand calls
   timeRemaining?: number;
   turnTime?: number;
@@ -30,11 +32,14 @@ export function PlayerSeat({
   showCards,
   playerSeatAddress,
   tableAddress,
+  gameAddress,
   gameId,
   timeRemaining = 30,
   turnTime = 30,
 }: PlayerSeatProps) {
-  const { myCards, decryptMyCards, isDecrypting, error } = useCardDecryption();
+  const { myCards, decryptMyCardsOnly, isDecrypting, error } =
+    useCardDecryption();
+  const { handRevealReady, submitHoleCards } = useGameStore();
   const progressRef = useRef<SVGCircleElement>(null);
 
   // Animate timer circle with GSAP
@@ -73,15 +78,22 @@ export function PlayerSeat({
     isCurrentPlayer && myCards.length > 0 ? myCards : player.cards;
 
   const handleRevealCards = async () => {
-    if (!effectivePlayerSeatAddress || !tableAddress || !gameId) {
+    if (!effectivePlayerSeatAddress || !tableAddress || !gameId || !gameAddress) {
       console.error("Missing required addresses or game ID", {
         playerSeatAddress: effectivePlayerSeatAddress,
         tableAddress,
+        gameAddress,
         gameId,
       });
       return;
     }
-    await decryptMyCards(effectivePlayerSeatAddress, tableAddress, gameId);
+    const cards = await decryptMyCardsOnly(effectivePlayerSeatAddress, gameAddress);
+    if (cards.length > 0) {
+      submitHoleCards(
+        window.location.pathname.split("/").pop() || "",
+        cards,
+      );
+    }
   };
   return (
     <div
@@ -166,7 +178,12 @@ export function PlayerSeat({
               const rotdeg = 20 * (-1) ** (i + 1);
               const translateX = 10 * (-1) ** (i + 2);
               return(
-                <PlayingCard hidden size="md" style={{ transform: `rotate(${rotdeg}deg) translateX(${translateX}px)` }}/>
+                <PlayingCard
+                  key={`hidden-${i}`}
+                  hidden
+                  size="md"
+                  style={{ transform: `rotate(${rotdeg}deg) translateX(${translateX}px)` }}
+                />
               )
             })}
             </>
@@ -192,6 +209,7 @@ export function PlayerSeat({
 
         {/* Reveal button - only show for current player if cards haven't been decrypted yet */}
         {isCurrentPlayer &&
+          handRevealReady &&
           effectivePlayerSeatAddress &&
           tableAddress &&
           gameId &&

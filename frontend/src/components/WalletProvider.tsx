@@ -1,4 +1,5 @@
-import { FC, ReactNode, useMemo } from "react";
+import { useMemo } from "react";
+import type { FC, ReactNode } from "react";
 import {
   ConnectionProvider,
   WalletProvider as SolanaWalletProvider,
@@ -16,7 +17,7 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 export const WalletProvider: FC<{ children: ReactNode }> = ({ children }) => {
   // Use devnet RPC endpoint
   const endpoint = useMemo(
-    () => "https://api.devnet.solana.com",
+    () => "https://devnet.helius-rpc.com/?api-key=19e8e7a6-48a7-405a-95d6-27123b062c3d",
     [],
   );
 
