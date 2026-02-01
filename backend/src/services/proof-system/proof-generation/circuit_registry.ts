@@ -20,13 +20,12 @@ export class CircuitRegistry {
       circDir: path.join(this.circuitPath, "shuffle"),
       acirPath: path.join(
         this.circuitPath,
-        "shuffle",
         "target",
         "shuffle.json",
       ),
-      ccsPath: path.join(this.circuitPath, "shuffle", "target", "shuffle.ccs"),
-      pkPath: path.join(this.circuitPath, "shuffle", "target", "shuffle.pk"),
-      vkPath: path.join(this.circuitPath, "shuffle", "target", "shuffle.vk"),
+      ccsPath: path.join(this.circuitPath, "target", "shuffle.ccs"),
+      pkPath: path.join(this.circuitPath, "target", "shuffle.pk"),
+      vkPath: path.join(this.circuitPath, "target", "shuffle.vk"),
     };
     this.registerCircuit(shuffle_circuit);
 
@@ -36,25 +35,21 @@ export class CircuitRegistry {
       circDir: path.join(this.circuitPath, "community"),
       acirPath: path.join(
         this.circuitPath,
-        "community",
         "target",
         "community.json",
       ),
       ccsPath: path.join(
         this.circuitPath,
-        "community",
         "target",
         "community.ccs",
       ),
       pkPath: path.join(
         this.circuitPath,
-        "community",
         "target",
         "community.pk",
       ),
       vkPath: path.join(
         this.circuitPath,
-        "community",
         "target",
         "community.vk",
       ),
@@ -65,10 +60,10 @@ export class CircuitRegistry {
       id: CircuitId.Reveal,
       name: "Reveal",
       circDir: path.join(this.circuitPath, "reveal"),
-      acirPath: path.join(this.circuitPath, "reveal", "target", "reveal.json"),
-      ccsPath: path.join(this.circuitPath, "reveal", "target", "reveal.ccs"),
-      pkPath: path.join(this.circuitPath, "reveal", "target", "reveal.pk"),
-      vkPath: path.join(this.circuitPath, "reveal", "target", "reveal.vk"),
+      acirPath: path.join(this.circuitPath, "target", "reveal.json"),
+      ccsPath: path.join(this.circuitPath, "target", "reveal.ccs"),
+      pkPath: path.join(this.circuitPath, "target", "reveal.pk"),
+      vkPath: path.join(this.circuitPath, "target", "reveal.vk"),
     };
     this.registerCircuit(reveal_circuit);
   }
@@ -112,17 +107,17 @@ export class CircuitRegistry {
 
   getWitnessPath(id: CircuitId): string {
     const circuit = this.get(id);
-    return path.join(circuit.circDir, "target", `${id}.gz`);
+    return path.join(this.circuitPath, "target", `${id}.gz`);
   }
 
   getProofPath(id: CircuitId): string {
     const circuit = this.get(id);
-    return path.join(circuit.circDir, "target", `${id}.proof`);
+    return path.join(this.circuitPath, "target", `${id}.proof`);
   }
 
   getPublicWitnessPath(id: CircuitId): string {
     const circuit = this.get(id);
-    return path.join(circuit.circDir, "target", `${id}.pw`);
+    return path.join(this.circuitPath, "target", `${id}.pw`);
   }
 
   getCircuitsPath(): string {

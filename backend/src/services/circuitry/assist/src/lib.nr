@@ -181,6 +181,7 @@ pub fn get_cards(deck: [Field; DECK_SIZE]) -> [Field; CARDS_TO_DEAL] {
 ///
 /// # Returns
 /// An array of commitments for the cards.
+#[export]
 pub fn calculate_commitment(
     cards: [Field; 10],
     players: [Field; 5],
@@ -213,6 +214,7 @@ pub fn calculate_commitment(
 ///
 /// # Returns
 /// The commitment for the community cards.
+#[export]
 pub fn calculate_community_commitment(cards: [Field; 5]) -> Field {
     Poseidon2::hash([cards[0], cards[1], cards[2], cards[3], cards[4]], 5)
 }
