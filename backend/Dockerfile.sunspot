@@ -1,0 +1,110 @@
+# =============================================================================
+# Sunspot Dockerfile
+# Noir circuit proving and verification tooling for Solana
+# Requires: Go 1.24+, Solana tools, Noir 1.0.0-beta.18
+# =============================================================================
+
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set shell for better error handling
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# =============================================================================
+# Install System Dependencies
+# =============================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Build essentials
+    build-essential \
+    pkg-config \
+    # Required for Solana tools
+    libudev-dev \
+    llvm \
+    libclang-dev \
+    protobuf-compiler \
+    libssl-dev \
+    # General utilities
+    curl \
+    wget \
+    git \
+    ca-certificates \
+    unzip \
+    # Keep container lightweight
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# =============================================================================
+# Install Go 1.25.6
+# =============================================================================
+ENV GO_VERSION=1.25.6
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/root/go
+ENV PATH=$GOROOT/bin:$GOPATH/bin:$PATH
+
+RUN wget -q "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -O /tmp/go.tar.gz \
+    && rm -rf /usr/local/go \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && rm /tmp/go.tar.gz \
+    && go version
+
+# =============================================================================
+# Install Solana Tools (includes Rust, Solana CLI, Anchor CLI, Surfpool, Node.js, Yarn)
+# =============================================================================
+RUN curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
+
+# Add Solana to PATH
+ENV PATH=/root/.local/share/solana/install/active_release/bin:$PATH
+ENV PATH=/root/.cargo/bin:$PATH
+
+# Verify Solana installation
+RUN solana --version && anchor --version
+
+# =============================================================================
+# Install Noir (Nargo) - Version 1.0.0-beta.18
+# =============================================================================
+ENV NOIR_VERSION=1.0.0-beta.18
+
+RUN curl -L https://raw.githubusercontent.com/noir-lang/noirup/refs/heads/main/install | bash
+
+# Add nargo to PATH
+ENV PATH=/root/.nargo/bin:$PATH
+
+# Install specific Noir version required by Sunspot
+RUN /root/.nargo/bin/noirup -v ${NOIR_VERSION} \
+    && nargo --version
+
+# =============================================================================
+# Build Sunspot
+# =============================================================================
+WORKDIR /opt
+
+# Clone Sunspot repository
+RUN git clone https://github.com/reilabs/sunspot.git
+
+WORKDIR /opt/sunspot/go
+
+# Build Sunspot binary
+RUN go build -o sunspot .
+
+# Move to system PATH
+RUN mv sunspot /usr/local/bin/
+
+# Set GNARK_VERIFIER_BIN environment variable
+ENV GNARK_VERIFIER_BIN=/opt/sunspot/gnark-solana/verifier-bin
+
+# Verify Sunspot installation
+RUN sunspot --help
+
+# =============================================================================
+# Create directories for circuits and keys
+# =============================================================================
+RUN mkdir -p /opt/circuits /opt/keys /opt/proofs
+
+WORKDIR /opt
+
+# =============================================================================
+# Default command
+# =============================================================================
+CMD ["sunspot", "--help"]

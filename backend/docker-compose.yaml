@@ -1,0 +1,128 @@
+version: "3.9"
+
+services:
+  # =============================================================================
+  # Poker Backend Service
+  # Main Node.js application service
+  # =============================================================================
+  poker-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: poker-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - SOLANA_RPC_URL=${SOLANA_RPC_URL:-https://api.devnet.solana.com}
+      - PRIVATE_KEY=${PRIVATE_KEY}
+      - PROGRAM_ID=${PROGRAM_ID}
+      - VERIFY_SHUFFLE_PROGRAM_ID=${VERIFY_SHUFFLE_PROGRAM_ID}
+      - VERIFY_COMMUNITY_PROGRAM_ID=${VERIFY_COMMUNITY_PROGRAM_ID}
+      - VERIFY_REVEAL_PROGRAM_ID=${VERIFY_REVEAL_PROGRAM_ID}
+    volumes:
+      - ./src:/app/src:ro
+      - ./package.json:/app/package.json:ro
+      - backend-node-modules:/app/node_modules
+    networks:
+      - poker-network
+    depends_on:
+      - sunspot
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # =============================================================================
+  # Sunspot Service
+  # Noir circuit proving and verification tooling for Solana
+  # Requires: Go 1.24+, Solana tools, Noir 1.0.0-beta.18
+  # =============================================================================
+  sunspot:
+    build:
+      context: .
+      dockerfile: Dockerfile.sunspot
+    container_name: sunspot
+    restart: unless-stopped
+    environment:
+      - GNARK_VERIFIER_BIN=/opt/sunspot/gnark-solana/verifier-bin
+      - PATH=/usr/local/go/bin:/root/.local/share/solana/install/active_release/bin:/root/.nargo/bin:$PATH
+      - SOLANA_RPC_URL=${SOLANA_RPC_URL:-https://api.devnet.solana.com}
+    volumes:
+      # Mount circuits directory for proof generation
+      - sunspot-circuits:/opt/circuits
+      # Mount keys directory for proving/verifying keys
+      - sunspot-keys:/opt/keys
+      # Mount proofs directory for generated proofs
+      - sunspot-proofs:/opt/proofs
+    networks:
+      - poker-network
+    # Keep container running for sunspot CLI commands
+    command: ["tail", "-f", "/dev/null"]
+    healthcheck:
+      test: ["CMD", "sunspot", "--help"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # =============================================================================
+  # Solana Validator (Local Development)
+  # Local Solana test validator for development and testing
+  # =============================================================================
+  solana-validator:
+    build:
+      context: .
+      dockerfile: Dockerfile.solana
+    container_name: solana-validator
+    restart: unless-stopped
+    ports:
+      - "8899:8899" # RPC port
+      - "8900:8900" # WebSocket port
+      - "9900:9900" # Faucet port
+    volumes:
+      - solana-ledger:/root/.config/solana/test-ledger
+      - solana-config:/root/.config/solana
+    networks:
+      - poker-network
+    command: ["solana-test-validator", "--reset", "--rpc-port", "8899"]
+    healthcheck:
+      test: ["CMD", "solana", "cluster-version", "-u", "http://localhost:8899"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    profiles:
+      - local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  poker-network:
+    driver: bridge
+    name: poker-solana-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # Backend volumes
+  backend-node-modules:
+    name: poker-backend-node-modules
+
+  # Sunspot volumes
+  sunspot-circuits:
+    name: sunspot-circuits
+  sunspot-keys:
+    name: sunspot-keys
+  sunspot-proofs:
+    name: sunspot-proofs
+
+  # Solana validator volumes
+  solana-ledger:
+    name: solana-test-ledger
+  solana-config:
+    name: solana-config
