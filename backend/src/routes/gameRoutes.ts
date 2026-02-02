@@ -3,7 +3,7 @@ import { GameService } from "../services/GameService";
 import { getBackendPublicKey } from "../services/WalletService";
 import type { CreateGameRequest } from "../../../shared/types";
 
-const router = Router();
+const router: Router = Router();
 
 // Create a new game
 router.post("/games", async (req: Request, res: Response) => {
