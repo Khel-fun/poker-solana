@@ -2,7 +2,6 @@ import { Field, fisher_yates_shuffle, merkle_root } from "./circuitry/codegen";
 import {
   request_randomess,
   post_cards,
-  
   get_community_cards,
 } from "./OnchainActions";
 import { toField } from "./proof-system/proof-generation/input_adapter";
@@ -58,6 +57,12 @@ export class Logic {
       table_cards.push(card);
     }
     return table_cards;
+  }
+
+  public async get_verification_results(
+    roundId: string,
+  ): Promise<VerificationSummary> {
+    return this.proofManager.roundVerification(roundId);
   }
 
   // async start_game(roundId: string): Signature {
@@ -138,12 +143,6 @@ export class Logic {
 
     // Queue the shuffle proof for non-blocking background processing
     this.proofManager.queueTask(roundId, CircuitId.Reveal, revealInputs);
-  }
-
-  async get_verification_summary(
-    roundId: string,
-  ): Promise<VerificationSummary> {
-    return await this.proofManager.awaitRoundVerification(roundId);
   }
 }
 
