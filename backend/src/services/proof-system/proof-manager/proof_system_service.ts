@@ -51,7 +51,7 @@ export class ProofSystemService {
     });
 
     this.proof_verify = options?.verifyConfig
-      ? new ProofVerify({ config: options.verifyConfig })
+      ? new ProofVerify()
       : proofVerify;
   }
 
@@ -109,9 +109,9 @@ export class ProofSystemService {
     return this.proof_verify.verifyOnChain(proofResult);
   }
 
-  configureVerification(config: VerifyConfig): void {
-    this.proof_verify = new ProofVerify({ config });
-  }
+  // configureVerification(config: VerifyConfig): void {
+  //   this.proof_verify = new ProofVerify();
+  // }
 
   isVerificationConfigured(): boolean {
     return this.proof_verify !== null;

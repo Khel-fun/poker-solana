@@ -20,15 +20,12 @@ import {
   assertIsTransactionWithBlockhashLifetime,
   signTransactionMessageWithSigners,
   getSignatureFromTransaction,
+  type Address,
 } from "@solana/kit";
+import { getSetComputeUnitLimitInstruction } from "@solana-program/compute-budget";
 
 export class ProofVerify {
-  private readonly config: VerifyConfig;
-
-  constructor(options?: { config?: VerifyConfig }) {
-    this.config = options?.config || this.setupDefaultVerifyConfig();
-  }
-
+  
   private validateConfig(config: VerifyConfig): void {
     if (!config.rpcUrl) {
       throw new Error("VerifyConfig.rpcUrl is required");
@@ -83,8 +80,9 @@ export class ProofVerify {
     return config;
   }
 
-  private getCluster(): string {
-    const url = this.config.rpcUrl.toLowerCase();
+  private async getCluster(): Promise<string> {
+    const config: VerifyConfig = await this.setupDefaultVerifyConfig();
+    const url = config.rpcUrl.toLowerCase();
     if (url.includes("mainnet")) return "mainnet";
     if (url.includes("testnet")) return "testnet";
     if (url.includes("devnet")) return "devnet";
@@ -92,8 +90,9 @@ export class ProofVerify {
     return "devnet"; // Default to devnet
   }
 
-  private getProgramID(circuitId: CircuitId): string {
-    const programId = this.config.programIds[circuitId];
+  private async getProgramID(circuitId: CircuitId): Promise<string> {
+    const config: VerifyConfig = await this.setupDefaultVerifyConfig();
+    const programId = config.programIds[circuitId];
     if (!programId) {
       throw new Error(`Missing programId for circuit ${circuitId}`);
     }
@@ -110,25 +109,35 @@ export class ProofVerify {
     };
   }
 
-  async submitTxn(payloadData: PayloadData, programId: string): Signature {
-    const client = this.config.walletClient;
+  async submitTxn(
+    payloadData: PayloadData,
+    programId: string,
+  ): Promise<Signature> {
+    const address: Address = programId as Address;
+    const config: VerifyConfig = await this.setupDefaultVerifyConfig();
+    const client = config.walletClient;
     const { value: latestBlockhash } = await client.rpc
       .getLatestBlockhash()
       .send();
 
-    // TODO: setup transaction instructions
-    const txnInstruction = {
-      programAddress: programId,
+    const verifyInstruction = {
+      programAddress: address,
       accounts: [],
-      data: payloadData,
+      data: new Uint8Array(payloadData.data),
     };
 
     const transactionMessage = pipe(
       createTransactionMessage({ version: 0 }),
       (tx) => setTransactionMessageFeePayerSigner(client.wallet, tx),
       (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-      (tx) => appendTransactionMessageInstructions([txnInstruction], tx), // TODO: setup and append transaction message instructions
-      // TODO: evaluate and set compute unit limit
+      (tx) =>
+        appendTransactionMessageInstructions(
+          [
+            getSetComputeUnitLimitInstruction({ units: 500_000 }),
+            verifyInstruction,
+          ],
+          tx,
+        ),
     );
 
     // Compile the transaction message and sign it.
@@ -147,9 +156,9 @@ export class ProofVerify {
   async verifyOnChain(proofResult: ProofResult): Promise<VerificationResult> {
     const instructionData: PayloadData =
       this.createInstructionData(proofResult);
-    const programId = this.getProgramID(proofResult.circuitId);
-    const signature = this.submitTxn(instructionData, programId);
-    const cluster = this.getCluster();
+    const programId = await this.getProgramID(proofResult.circuitId);
+    const signature = await this.submitTxn(instructionData, programId);
+    const cluster = await this.getCluster();
     const explorerUrl = `https://explorer.solana.com/tx/${signature}?cluster=${cluster}`;
 
     return {

@@ -41,7 +41,7 @@ export class ProofManager {
     // Start async proof generation + verification
     task.resultPromise = this.executeTask(task, inputs);
 
-    // Add to round's's task list
+    // Add to round's task list
     const roundTasks = this.tasks.get(roundId) ?? [];
     roundTasks.push(task);
     this.tasks.set(roundId, roundTasks);
@@ -90,7 +90,7 @@ export class ProofManager {
     }
   }
 
-  async awaitRoundVerification(roundId: string): Promise<VerificationSummary> {
+  public async roundVerification(roundId: string): Promise<VerificationSummary> {
     const roundTasks = this.tasks.get(roundId);
 
     if (!roundTasks || roundTasks.length === 0) {
@@ -136,7 +136,7 @@ export class ProofManager {
     };
 
     console.log(
-      `[ProofVerificationManager] Hand ${roundId} complete: ` +
+      `[ProofVerificationManager] Round ${roundId} complete: ` +
         `${successCount}/${roundTasks.length} verified`,
     );
 
