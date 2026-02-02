@@ -1,0 +1,63 @@
+# =============================================================================
+# Solana Test Validator Dockerfile
+# Local Solana validator for development and testing
+# =============================================================================
+
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set shell for better error handling
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# =============================================================================
+# Install System Dependencies
+# =============================================================================
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Build essentials (required for Solana tools)
+    build-essential \
+    pkg-config \
+    libudev-dev \
+    llvm \
+    libclang-dev \
+    protobuf-compiler \
+    libssl-dev \
+    # General utilities
+    curl \
+    wget \
+    ca-certificates \
+    # Keep container lightweight
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# =============================================================================
+# Install Solana Tools
+# =============================================================================
+RUN curl --proto '=https' --tlsv1.2 -sSfL https://solana-install.solana.workers.dev | bash
+
+# Add Solana to PATH
+ENV PATH=/root/.local/share/solana/install/active_release/bin:$PATH
+ENV PATH=/root/.cargo/bin:$PATH
+
+# Verify Solana installation
+RUN solana --version
+
+# =============================================================================
+# Configure Solana CLI for local validator
+# =============================================================================
+RUN solana config set --url http://localhost:8899
+
+# Create ledger directory
+RUN mkdir -p /root/.config/solana/test-ledger
+
+# Expose ports
+# 8899: RPC port
+# 8900: WebSocket port  
+# 9900: Faucet port
+EXPOSE 8899 8900 9900
+
+# =============================================================================
+# Default command - Start test validator
+# =============================================================================
+CMD ["solana-test-validator", "--reset", "--rpc-port", "8899"]
