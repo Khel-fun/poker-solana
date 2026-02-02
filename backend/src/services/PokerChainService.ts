@@ -31,6 +31,10 @@ const REVEAL_COMMUNITY_DISCRIMINATOR = new Uint8Array([
   0xc5, 0xac, 0x33, 0xba, 0x12, 0x98, 0xaf, 0x57,
 ]);
 
+const GENERATE_RANDOM_DISCRIMINATOR = new Uint8Array([
+  0xfe, 0x74, 0xb4, 0xe1, 0x9a, 0x13, 0x47, 0x9a,
+]);
+
 const INCO_LIGHTNING_PROGRAM_ID = address(
   "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj",
 );
@@ -215,6 +219,150 @@ const buildProcessCardsBatchData = (
   return data;
 };
 
+// ============================================
+// Random Number Generation (Inco e_rand)
+// ============================================
+
+export async function deriveRandomStatePda(
+  tablePDA: Address,
+  nonce: bigint,
+): Promise<Address> {
+  const programId = getProgramId();
+  const nonceBuffer = new Uint8Array(8);
+  writeU64LE(nonceBuffer, nonce, 0);
+
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [
+      new TextEncoder().encode("random"),
+      getAddressEncoder().encode(tablePDA),
+      nonceBuffer,
+    ],
+  });
+
+  return pda;
+}
+
+const buildGenerateRandomData = (nonce: bigint): Uint8Array => {
+  const data = new Uint8Array(8 + 8); // discriminator + nonce
+  data.set(GENERATE_RANDOM_DISCRIMINATOR, 0);
+  writeU64LE(data, nonce, 8);
+  return data;
+};
+
+/**
+ * Generate a random number on-chain using Inco's e_rand
+ * Uses current timestamp as nonce for uniqueness
+ */
+export async function generateRandomOnChain(params: {
+  tablePDA: string;
+}): Promise<{ signature: string; randomStatePda: string; nonce: bigint }> {
+  const { tablePDA } = params;
+  const client = await createClient();
+  const programId = getProgramId();
+  const tableAddress = address(tablePDA);
+
+  // Use current timestamp as nonce (unique per millisecond)
+  const nonce = BigInt(Date.now());
+  const randomStatePda = await deriveRandomStatePda(tableAddress, nonce);
+
+  console.log("[PokerChain] generateRandom:", {
+    table: tablePDA,
+    nonce: nonce.toString(),
+    randomStatePda: String(randomStatePda),
+  });
+
+  const instruction: Instruction = {
+    programAddress: programId,
+    accounts: [
+      { address: tableAddress, role: 0 /* READONLY */ },
+      { address: randomStatePda, role: 1 /* WRITABLE */ },
+      { address: client.wallet.address, role: 3 /* WRITABLE_SIGNER */ },
+      { address: INCO_LIGHTNING_PROGRAM_ID, role: 0 /* READONLY */ },
+      {
+        address: address("11111111111111111111111111111111"),
+        role: 0 /* READONLY */,
+      },
+    ],
+    data: buildGenerateRandomData(nonce),
+  };
+
+  const { value: latestBlockhash } = await client.rpc
+    .getLatestBlockhash()
+    .send();
+
+  const transactionMessage = pipe(
+    createTransactionMessage({ version: 0 }),
+    (tx: any) => setTransactionMessageFeePayerSigner(client.wallet, tx),
+    (tx: any) =>
+      setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+    (tx: any) => appendTransactionMessageInstructions([instruction], tx),
+  );
+
+  const signedTransaction = await signTransactionMessageWithSigners(
+    transactionMessage as any,
+  );
+
+  await client.sendAndConfirmTransaction(signedTransaction as any, {
+    commitment: "confirmed",
+  });
+
+  const signature = getSignatureFromTransaction(signedTransaction);
+
+  return {
+    signature,
+    randomStatePda: String(randomStatePda),
+    nonce,
+  };
+}
+
+/**
+ * Fetch RandomState account and decrypt the random value
+ * Uses extended retries with longer delays for Inco network propagation
+ */
+export async function fetchAndDecryptRandomSeed(
+  randomStatePda: string,
+): Promise<string> {
+  const client = await createClient();
+  const pdaAddress = address(randomStatePda);
+
+  // Wait for account to be created
+  await sleep(2000);
+
+  const account = await client.rpc
+    .getAccountInfo(pdaAddress, { encoding: "base64" })
+    .send();
+
+  if (!account.value?.data) {
+    throw new Error("RandomState account not found");
+  }
+
+  const data = Buffer.from(account.value.data[0], "base64");
+
+  // RandomState layout:
+  // 8 discriminator + 16 random_handle (Euint128) + 32 requester + 8 nonce + 1 bump
+  const handleBytes = data.slice(8, 8 + 16);
+  const handleString = handleBytesToDecimalString(handleBytes);
+
+  console.log("[PokerChain] Decrypting random seed:", {
+    pda: randomStatePda,
+    handle: handleString.slice(0, 30) + "...",
+  });
+
+  // Extended retry with longer delays for Inco network propagation
+  // Initial wait 5s, then retries: 3s, 5s, 8s, 10s, 15s, 20s
+  const plaintexts = await decryptWithRetry(
+    [handleString],
+    7,      // More attempts
+    5000,   // Longer base delay (5 seconds)
+    signBackendMessage,
+    client.wallet.address,
+  );
+
+  console.log("[PokerChain] Random seed decrypted successfully");
+  return plaintexts[0];
+}
+
 export async function startGameOnChain(params: {
   tablePDA: string;
   gameId: bigint;
@@ -284,16 +432,21 @@ export async function processCardsBatches(params: {
   const tableAddress = address(tablePDA);
   const gameAddr = address(gameAddress);
 
-  // Generate 15 unique card values
-  // const deck = Array.from({ length: 52 }, (_, i) => i);
-  // for (let i = deck.length - 1; i > 0; i--) {
-  //   const j = Math.floor(Math.random() * (i + 1));
-  //   [deck[i], deck[j]] = [deck[j], deck[i]];
-  // }
-  // const selected = deck.slice(0, 15);
+  // Generate 15 unique card values using on-chain verified randomness
+  console.log("[PokerChain] Generating random seed on-chain...");
 
-  const seed_value = "" // TODO: get onchain verified randomness
-  const roundId = "" // TODO: add the associated tableId
+  // Step 1: Generate random number on-chain
+  const { randomStatePda } = await generateRandomOnChain({ tablePDA });
+
+  // Step 2: Decrypt the random seed (with extended retries for Inco propagation)
+  const seed_value = await fetchAndDecryptRandomSeed(randomStatePda);
+
+  // Use tablePDA as roundId for proof tracking
+  const roundId = tablePDA;
+
+  console.log("[PokerChain] Shuffling cards with seed:", seed_value.slice(0, 30) + "...");
+
+  // Step 3: Shuffle deck using deterministic RNG based on the seed
   const selected = await logic.get_table_cards(roundId, seed_value);
 
   const encryptedCards: Uint8Array[] = [];
