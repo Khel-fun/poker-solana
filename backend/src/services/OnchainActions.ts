@@ -15,8 +15,8 @@ export async function request_randomess(tablePDA: string): Promise<string> {
   // Generate random on-chain
   const { randomStatePda } = await generateRandomOnChain({ tablePDA });
 
-  // Decrypt and return the seed
-  const seed = await fetchAndDecryptRandomSeed(randomStatePda);
+  // Decrypt and return the seed (also calls allow_random internally)
+  const seed = await fetchAndDecryptRandomSeed(tablePDA, randomStatePda);
   return seed;
 }
 

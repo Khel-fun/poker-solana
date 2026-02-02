@@ -76,17 +76,23 @@ export class ProofManager {
 
       return verificationResult;
     } catch (error) {
-      // Failure
+      // Failure - log and store but don't throw (non-blocking)
       task.status = VerificationTaskStatus.Failed;
       task.error = error instanceof Error ? error : new Error(String(error));
       task.completedAt = new Date();
 
-      console.error(
+      console.warn(
         `[ProofVerificationManager] ${task.circuitId} failed for hand ${task.roundId}:`,
         task.error.message,
       );
 
-      throw task.error;
+      // Return a failure result instead of throwing
+      return {
+        signature: "",
+        success: false,
+        cluster: "",
+        explorerUrl: "",
+      };
     }
   }
 
@@ -137,7 +143,7 @@ export class ProofManager {
 
     console.log(
       `[ProofVerificationManager] Round ${roundId} complete: ` +
-        `${successCount}/${roundTasks.length} verified`,
+      `${successCount}/${roundTasks.length} verified`,
     );
 
     return summary;

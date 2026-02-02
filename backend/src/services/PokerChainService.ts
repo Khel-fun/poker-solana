@@ -35,6 +35,10 @@ const GENERATE_RANDOM_DISCRIMINATOR = new Uint8Array([
   0xfe, 0x74, 0xb4, 0xe1, 0x9a, 0x13, 0x47, 0x9a,
 ]);
 
+const ALLOW_RANDOM_DISCRIMINATOR = new Uint8Array([
+  0xda, 0xbd, 0xb1, 0xaf, 0x17, 0x9f, 0x64, 0x14,
+]);
+
 const INCO_LIGHTNING_PROGRAM_ID = address(
   "5sjEbPiqgZrYwR31ahR6Uk9wf5awoX61YGg7jExQSwaj",
 );
@@ -317,10 +321,72 @@ export async function generateRandomOnChain(params: {
 }
 
 /**
- * Fetch RandomState account and decrypt the random value
+ * Call allow_random instruction to grant backend decrypt permission
+ * Must be called after generateRandomOnChain
+ */
+export async function allowRandomOnChain(params: {
+  tablePDA: string;
+  randomStatePda: string;
+  handleBytes: Uint8Array;
+}): Promise<{ signature: string }> {
+  const { tablePDA, randomStatePda, handleBytes } = params;
+  const client = await createClient();
+  const programId = getProgramId();
+  const tableAddress = address(tablePDA);
+  const randomStateAddr = address(randomStatePda);
+
+  // Derive allowance PDA: [handle_bytes, backend_address]
+  const allowancePda = await buildAllowanceAccount(handleBytes, client.wallet.address);
+
+
+
+  const instruction: Instruction = {
+    programAddress: programId,
+    accounts: [
+      { address: tableAddress, role: 0 /* READONLY */ },
+      { address: randomStateAddr, role: 0 /* READONLY */ },
+      { address: allowancePda, role: 1 /* WRITABLE */ },
+      { address: client.wallet.address, role: 3 /* WRITABLE_SIGNER */ },
+      { address: INCO_LIGHTNING_PROGRAM_ID, role: 0 /* READONLY */ },
+      {
+        address: address("11111111111111111111111111111111"),
+        role: 0 /* READONLY */,
+      },
+    ],
+    data: ALLOW_RANDOM_DISCRIMINATOR,
+  };
+
+  const { value: latestBlockhash } = await client.rpc
+    .getLatestBlockhash()
+    .send();
+
+  const transactionMessage = pipe(
+    createTransactionMessage({ version: 0 }),
+    (tx: any) => setTransactionMessageFeePayerSigner(client.wallet, tx),
+    (tx: any) =>
+      setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+    (tx: any) => appendTransactionMessageInstructions([instruction], tx),
+  );
+
+  const signedTransaction = await signTransactionMessageWithSigners(
+    transactionMessage as any,
+  );
+
+  await client.sendAndConfirmTransaction(signedTransaction as any, {
+    commitment: "confirmed",
+  });
+
+  const signature = getSignatureFromTransaction(signedTransaction);
+
+  return { signature };
+}
+
+/**
+ * Fetch RandomState account, call allow, then decrypt the random value
  * Uses extended retries with longer delays for Inco network propagation
  */
 export async function fetchAndDecryptRandomSeed(
+  tablePDA: string,
   randomStatePda: string,
 ): Promise<string> {
   const client = await createClient();
@@ -344,13 +410,25 @@ export async function fetchAndDecryptRandomSeed(
   const handleBytes = data.slice(8, 8 + 16);
   const handleString = handleBytesToDecimalString(handleBytes);
 
-  console.log("[PokerChain] Decrypting random seed:", {
+  console.log("[PokerChain] Fetched random handle:", {
     pda: randomStatePda,
     handle: handleString.slice(0, 30) + "...",
   });
 
-  // Extended retry with longer delays for Inco network propagation
-  // Initial wait 5s, then retries: 3s, 5s, 8s, 10s, 15s, 20s
+  // Call allow_random to grant decrypt permission
+  console.log("[PokerChain] Calling allowRandom to grant decrypt permission...");
+  await allowRandomOnChain({
+    tablePDA,
+    randomStatePda,
+    handleBytes,
+  });
+  console.log("[PokerChain] Decrypt permission granted!");
+
+  // Wait for Inco network to propagate allow
+  await sleep(3000);
+
+  // Decrypt with retries
+  console.log("[PokerChain] Decrypting random seed...");
   const plaintexts = await decryptWithRetry(
     [handleString],
     7,      // More attempts
@@ -359,7 +437,7 @@ export async function fetchAndDecryptRandomSeed(
     client.wallet.address,
   );
 
-  console.log("[PokerChain] Random seed decrypted successfully");
+  console.log("[PokerChain] RNG seed ready ✓");
   return plaintexts[0];
 }
 
@@ -439,7 +517,7 @@ export async function processCardsBatches(params: {
   const { randomStatePda } = await generateRandomOnChain({ tablePDA });
 
   // Step 2: Decrypt the random seed (with extended retries for Inco propagation)
-  const seed_value = await fetchAndDecryptRandomSeed(randomStatePda);
+  const seed_value = await fetchAndDecryptRandomSeed(tablePDA, randomStatePda);
 
   // Use tablePDA as roundId for proof tracking
   const roundId = tablePDA;
@@ -546,11 +624,10 @@ async function decryptWithRetry(
       });
       return result.plaintexts;
     } catch (error) {
-      console.warn("[PokerChain] Decrypt attempt failed:", {
-        attempt: i + 1,
-        attempts,
-        error,
-      });
+      // Only log retries briefly
+      if (i < attempts - 1) {
+        console.log(`[PokerChain] Decrypt retry ${i + 1}/${attempts}...`);
+      }
       lastError = error;
     }
   }
