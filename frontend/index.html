@@ -8,6 +8,11 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Buffer polyfill shim - must load before any modules -->
+    <script>
+      window.global = window;
+      window.process = { env: {} };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

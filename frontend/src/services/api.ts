@@ -1,10 +1,11 @@
 import type { CreateGameRequest, CreateGameResponse, GameListItem, GameSettings } from '../../../shared/types';
 
 const API_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+const API_BASE = `${API_URL}/api`;
 
 export const api = {
   async createGame(data: CreateGameRequest): Promise<CreateGameResponse> {
-    const response = await fetch(`${API_URL}/games`, {
+    const response = await fetch(`${API_BASE}/games`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -14,19 +15,19 @@ export const api = {
   },
 
   async getActiveGames(): Promise<GameListItem[]> {
-    const response = await fetch(`${API_URL}/games`);
+    const response = await fetch(`${API_BASE}/games`);
     if (!response.ok) throw new Error('Failed to fetch games');
     return response.json();
   },
 
   async getGame(gameId: string): Promise<{ id: string; name: string; status: string; playerCount: number; maxPlayers: number; settings: GameSettings }> {
-    const response = await fetch(`${API_URL}/games/${gameId}`);
+    const response = await fetch(`${API_BASE}/games/${gameId}`);
     if (!response.ok) throw new Error('Failed to fetch game');
     return response.json();
   },
 
   async attachTable(gameId: string, tablePDA: string): Promise<void> {
-    const response = await fetch(`${API_URL}/games/${gameId}/table`, {
+    const response = await fetch(`${API_BASE}/games/${gameId}/table`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tablePDA }),
