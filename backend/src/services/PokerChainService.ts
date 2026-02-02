@@ -14,7 +14,7 @@ import {
 } from "@solana/kit";
 import { encryptValue } from "@inco/solana-sdk/encryption";
 import { decrypt } from "@inco/solana-sdk/attested-decrypt";
-import type { Card } from "../../../shared/types";
+import type { Card } from "../../shared/types";
 import { createClient, signBackendMessage } from "./WalletService";
 import { logic } from "./Logic";
 

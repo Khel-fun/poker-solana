@@ -1,4 +1,4 @@
-import type { Card, Rank } from '../../../shared/types';
+import type { Card, Rank } from '../../shared/types';
 
 interface HandResult {
   rank: number;

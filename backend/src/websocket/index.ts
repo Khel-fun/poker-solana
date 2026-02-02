@@ -11,7 +11,7 @@ import type {
   ClientToServerEvents,
   ServerToClientEvents,
   PlayerAction,
-} from "../../../shared/types";
+} from "../../shared/types";
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents>;

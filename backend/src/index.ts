@@ -5,7 +5,7 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import { gameRoutes } from './routes/gameRoutes';
 import { setupWebSocket } from './websocket';
-import type { ClientToServerEvents, ServerToClientEvents } from '../../shared/types';
+import type { ClientToServerEvents, ServerToClientEvents } from '../shared/types';
 
 const app = express();
 const httpServer = createServer(app);

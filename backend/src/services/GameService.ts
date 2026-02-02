@@ -10,7 +10,7 @@ import type {
   SidePot,
   ActionType,
   GameRound,
-} from "../../../shared/types";
+} from "../../shared/types";
 import { HandEvaluator } from "./HandEvaluator";
 
 class GameServiceClass {
@@ -630,11 +630,11 @@ class GameServiceClass {
 
   private calculatePots(game: GameState): SidePot[] {
     const nonFoldedPlayers = game.players.filter((p) => !p.folded);
-    const allInAmounts = [
+    const allInAmounts: any[] = [
       ...new Set(
         nonFoldedPlayers.filter((p) => p.isAllIn).map((p) => p.totalBet),
       ),
-    ].sort((a, b) => a - b);
+    ].sort((a: any, b: any) => a - b);
 
     if (allInAmounts.length === 0) {
       return [

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { GameService } from "../services/GameService";
 import { getBackendPublicKey } from "../services/WalletService";
-import type { CreateGameRequest } from "../../../shared/types";
+import type { CreateGameRequest } from "../../shared/types";
 
 const router: Router = Router();
 
