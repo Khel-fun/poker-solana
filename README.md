@@ -22,6 +22,9 @@ poker-solana/
 - **Turn timer** with action panel (fold/check/call/raise/all-in)
 - **Responsive UI** with TailwindCSS
 
+## Architecture
+![Architecture](./diagrams/architecture.svg)
+
 ## Setup
 
 ### Prerequisites
