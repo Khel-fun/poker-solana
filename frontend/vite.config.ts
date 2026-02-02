@@ -7,25 +7,44 @@ export default defineConfig({
   plugins: [
     react(),
     nodePolyfills({
-      // Enable polyfills for specific globals and modules
+      // Polyfill Buffer first to fix readable-stream issue
       globals: {
         Buffer: true,
         global: true,
         process: true,
       },
-      // Enable polyfills for Node.js built-in modules
+      include: ['buffer', 'stream', 'crypto', 'util', 'events', 'process'],
       protocolImports: true,
     }),
   ],
   resolve: {
     alias: {
+      buffer: 'buffer/',
+      stream: 'readable-stream',
       crypto: 'crypto-browserify',
-      stream: 'stream-browserify',
       assert: 'assert',
       http: 'stream-http',
       https: 'https-browserify',
-      os: 'os-browserify',
+      os: 'os-browserify/browser',
       url: 'url',
+      util: 'util',
+    },
+  },
+  define: {
+    'process.env': {},
+    global: 'globalThis',
+  },
+  optimizeDeps: {
+    include: ['buffer', 'process'],
+    esbuildOptions: {
+      define: {
+        global: 'globalThis',
+      },
+    },
+  },
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true,
     },
   },
 })

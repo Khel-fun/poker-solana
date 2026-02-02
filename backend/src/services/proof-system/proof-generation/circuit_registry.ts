@@ -102,7 +102,7 @@ export class CircuitRegistry {
 
   getProverTomlPath(id: CircuitId): string {
     const circuit = this.get(id);
-    return path.join(circuit.circDir, "prover.toml");
+    return path.join(circuit.circDir, "Prover.toml");
   }
 
   getWitnessPath(id: CircuitId): string {

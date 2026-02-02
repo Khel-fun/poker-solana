@@ -1,51 +1,59 @@
-// import { encryptValue, EncryptionError } from "@inco/solana-sdk/encryption";
-// import { decrypt } from "@inco/solana-sdk/attested-decrypt";
-// import { address, Instruction, Signature } from "@solana/kit";
-// import { createClient } from "./WalletService";
+import {
+  generateRandomOnChain,
+  fetchAndDecryptRandomSeed,
+  revealCommunityAndDecrypt,
+} from "./PokerChainService";
+import type { Card } from "../../../shared/types";
 
-// TODO: implement request_randomess from game-contract
-export async function request_randomess() {} // return a Promise<string>
+/**
+ * Request on-chain verified randomness using Inco's e_rand
+ * Generates a random number on-chain and decrypts it
+ * @param tablePDA - The table PDA to associate the random number with
+ * @returns The decrypted random seed as a string
+ */
+export async function request_randomess(tablePDA: string): Promise<string> {
+  // Generate random on-chain
+  const { randomStatePda } = await generateRandomOnChain({ tablePDA });
 
-export async function post_cards(roundId: string, cards: number[]) {
-  // let card_ciphers: string[] = [];
-  // for (let i = 0; i < cards.length; i++) {
-  //   const card = cards[i];
-  //   const encryptedCard = await encryptValue(card);
-  //   card_ciphers.push(encryptedCard);
-  // }
-  // if (!process.env.PROGRAM_ID) {
-  //   throw new Error("PROGRAM_ID environment variable is not set");
-  // }
-  // const programAddress = address(process.env.PROGRAM_ID);
-  // let cards_per_batch: string[] = [];
-  // try {
-  //   for (let i = 0; i < card_ciphers.length / 2; i++) {
-  //     cards_per_batch.push(card_ciphers[i * 2]);
-  //     cards_per_batch.push(card_ciphers[i * 2 + 1]);
-  //     const instruction: Instruction = {
-  //       accounts: [],
-  //       data: Buffer.from(cards_per_batch.join(""), "hex"),
-  //       programAddress,
-  //     };
-  //     // TODO: implement posting onchain
-  //   }
-  // } catch (error) {
-  //   if (error instanceof EncryptionError) {
-  //     console.error("Encryption failed:", error.message);
-  //     console.error("Cause:", error.cause);
-  //   }
-  // }
+  // Decrypt and return the seed (also calls allow_random internally)
+  const seed = await fetchAndDecryptRandomSeed(tablePDA, randomStatePda);
+  return seed;
 }
 
-// TODO: implement get_community_cards from game-contract
+/**
+ * Post encrypted cards to the blockchain (stub - actual implementation in PokerChainService)
+ */
+export async function post_cards(roundId: string, cards: number[]): Promise<void> {
+  // This is now handled by processCardsBatches in PokerChainService
+  // which internally encrypts and posts cards to the chain
+  console.log("[OnchainActions] post_cards called - use processCardsBatches instead");
+}
+
+/**
+ * Get community cards from on-chain and decrypt them
+ * @param tablePDA - The table PDA
+ * @param gameAddress - The game PDA address
+ * @param num - Number of community cards to get (for logging)
+ * @returns Decrypted community cards
+ */
 export async function get_community_cards(
-  roundId: string,
-  num: number, // number of communuity card being requested
-) {
-  // get the necessary handles
-  // decrypt and read the cards
-  // return a Promise<number[]>
+  tablePDA: string,
+  gameAddress: string,
+  num: number,
+): Promise<Card[]> {
+  const cards = await revealCommunityAndDecrypt({
+    tablePDA,
+    gameAddress,
+  });
+
+  // Return only the requested number of cards
+  return cards.slice(0, num);
 }
 
-// TODO: final onchain update of game state at the end of a gaming round.
-export async function update_game_state() {} // return a Promise<void>
+/**
+ * Final on-chain update of game state at the end of a gaming round
+ * (stub - to be implemented based on specific game settlement logic)
+ */
+export async function update_game_state(): Promise<void> {
+  console.log("[OnchainActions] update_game_state - not yet implemented");
+}
