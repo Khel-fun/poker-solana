@@ -2,7 +2,7 @@ import { Field, fisher_yates_shuffle, merkle_root } from "./circuitry/codegen";
 import {
   request_randomess,
   post_cards,
-  trigger_card_process,
+  
   get_community_cards,
 } from "./OnchainActions";
 import { toField } from "./proof-system/proof-generation/input_adapter";
@@ -38,7 +38,10 @@ export class Logic {
     this.proofSystemService = options?.proofSystemService || proofSystemService;
   }
 
-  public async get_table_cards(roundId: string, seed: string): Promise<number[]> {
+  public async get_table_cards(
+    roundId: string,
+    seed: string,
+  ): Promise<number[]> {
     const shuffled_deck: Field[] = await fisher_yates_shuffle(seed);
     const root: Field = await merkle_root(shuffled_deck, seed);
     let chosen_cards: string[] = [];
@@ -98,13 +101,13 @@ export class Logic {
     this.proofManager.queueTask(roundId, CircuitId.Shuffle, shuffleInputs);
   }
 
-  async draw_community_cards(
-    roundId: string,
-    numCards: number,
-  ): Promise<number[]> {
-    let cards: number[] = await get_community_cards(roundId, numCards);
-    return cards;
-  }
+  // async draw_community_cards(
+  //   roundId: string,
+  //   numCards: number,
+  // ): Promise<number[]> {
+  //   let cards: number[] = await get_community_cards(roundId, numCards);
+  //   return cards;
+  // }
 
   async prove_community_card(
     roundId: string,
