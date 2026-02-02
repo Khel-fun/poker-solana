@@ -49,7 +49,13 @@ export class Logic {
       chosen_cards.push(card);
     }
 
-    await this.prove_shuffled_deck(roundId, seed, root, chosen_cards);
+    // Proof generation is optional - don't block game flow if it fails
+    try {
+      await this.prove_shuffled_deck(roundId, seed, root, chosen_cards);
+    } catch (error) {
+      console.warn("[Logic] Proof generation failed (non-blocking):",
+        error instanceof Error ? error.message : error);
+    }
 
     let table_cards: number[] = [];
     for (let i = 0; i < 15; i++) {

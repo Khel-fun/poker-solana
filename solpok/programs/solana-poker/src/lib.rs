@@ -7,6 +7,7 @@ pub mod error;
 pub mod state;
 
 pub mod create_table;
+pub mod allow_random;
 pub mod generate_random;
 pub mod join_table;
 pub mod refund_all;
@@ -18,6 +19,7 @@ pub mod settle_game;
 pub mod start_game;
 
 use create_table::*;
+use allow_random::*;
 use generate_random::*;
 use join_table::*;
 use refund_all::*;
@@ -140,11 +142,23 @@ pub mod solana_poker {
     }
 
     /// Generate an encrypted random number using Inco e_rand
+    ///
+    /// Backend can call this to get a random value for off-chain use.
     /// Pass allowance accounts via remaining_accounts to grant decrypt permission.
     pub fn generate_random<'info>(
         ctx: Context<'_, '_, '_, 'info, GenerateRandom<'info>>,
         nonce: u64,
     ) -> Result<()> {
         generate_random::handler(ctx, nonce)
+    }
+
+    /// Grant backend permission to decrypt a random value
+    ///
+    /// Must be called after generate_random. Reads the handle from RandomState
+    /// and calls Inco's allow CPI to grant decryption permission.
+    pub fn allow_random<'info>(
+        ctx: Context<'_, '_, '_, 'info, AllowRandom<'info>>,
+    ) -> Result<()> {
+        allow_random::handler(ctx)
     }
 }

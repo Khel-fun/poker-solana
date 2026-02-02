@@ -72,6 +72,8 @@ lsof -ti:5173 | xargs kill -9
 Open your browser and navigate to:
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:3001
+- **Game Contract**: [contract](https://explorer.solana.com/address/7EZ1zWNMjuHh62dikk9TAo478VMzAiLkvg8S7Vm85T7s?cluster=devnet)
+- **Shuffle Verifier Contract**: [contract](https://explorer.solana.com/address/8sr4U8uZC9gqqwwouF949G86L3RzcY3XPX725sJBLxVZ?cluster=devnet)
 
 ## How to Play
 
