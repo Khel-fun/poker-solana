@@ -1,7 +1,7 @@
 import type { CreateGameRequest, CreateGameResponse, GameListItem, GameSettings } from '../../../shared/types';
 
 const API_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
-const API_BASE = `${API_URL}/api`;
+const API_BASE = `https://${API_URL}/api`;
 
 export const api = {
   async createGame(data: CreateGameRequest): Promise<CreateGameResponse> {
